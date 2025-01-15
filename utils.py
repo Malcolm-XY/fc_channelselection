@@ -31,6 +31,12 @@ def raed_labels(path_txt):
     print('Labels Reading Done')
     
     return labels
+                         
+def read_distribution(path_txt):
+    # read txt; channel distribution
+    distribution = pandas.read_csv(path_txt, sep='\t')
+    
+    return distribution
 
 def load_cmdata2d(selected_feature, selected_band, experiment, imshow=False):
     """
@@ -228,3 +234,5 @@ if __name__ == '__main__':
     cmdata1d_gamma = load_cmdata1d('PLV', 'gamma', 'sub1ex1')
     cmdata2d_joint = load_cmdata2d('PLV', 'joint', 'sub1ex1')
     cmdata2d_gamma = load_cmdata2d('PLV', 'gamma', 'sub1ex1')
+    
+    
