@@ -167,7 +167,7 @@ def plot_3d_channels_(distribution, clusters):
 fc_alpha, fc_beta, fc_gamma = fc.load_global_averages()
 
 # 使用层次聚类划分
-clusters,parsed_clusters = hierarchical_clustering(fc_alpha, threshold=None, parse=True, verbose=True)
+clusters,parsed_clusters = hierarchical_clustering(fc_alpha, threshold=0.3, parse=True, verbose=True)
     
 distribution = utils.get_distribution()
 
