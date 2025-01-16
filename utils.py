@@ -31,7 +31,20 @@ def raed_labels(path_txt):
     print('Labels Reading Done')
     
     return labels
-                         
+
+def get_distribution():
+    # path
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    
+    path_distribution = os.path.join(path_parent, 'data', 'SEED', 
+                                     'electrode distribution', 
+                                     'biosemi62_64_channels_original_distribution.txt')
+    
+    distribution = read_distribution(path_distribution)
+    
+    return distribution
+    
 def read_distribution(path_txt):
     # read txt; channel distribution
     distribution = pandas.read_csv(path_txt, sep='\t')

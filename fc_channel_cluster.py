@@ -5,27 +5,68 @@ Created on Wed Jan 15 18:18:41 2025
 @author: usouu
 """
 import numpy as np
-
-from scipy.cluster.hierarchy import linkage, fcluster
-from scipy.spatial.distance import squareform
-
-import fc_computer as fc
-
-def hierarchical_clustering(correlation_matrix, threshold=0.7):
-    """
-    使用层次聚类划分信号
-    :param correlation_matrix: 相关系数矩阵
-    :param threshold: 不相似的阈值
-    :return: clusters: ndarray of cluster labels
-    """
-    distance_matrix = 1 - correlation_matrix
-    np.fill_diagonal(distance_matrix, 0)  # 自己与自己的距离设为 0
-    condensed_dist = squareform(distance_matrix, checks=False)  # 转换为压缩形式
-    linkage_matrix = linkage(condensed_dist, method='average')  # 层次聚类
-    clusters = fcluster(linkage_matrix, threshold, criterion='distance')
-    return clusters
+import pandas as pd
+import matplotlib.pyplot as plt
 
 from collections import defaultdict
+from scipy.cluster.hierarchy import linkage, fcluster
+from scipy.spatial.distance import squareform
+from scipy.spatial import ConvexHull
+
+import utils
+import fc_computer as fc
+
+def hierarchical_clustering(correlation_matrix, threshold=None, parse=False, verbose=False):
+    """
+    Perform hierarchical clustering to group signals based on a correlation matrix.
+
+    :param correlation_matrix: ndarray
+        Correlation coefficient matrix (n x n).
+    :param threshold: float or None
+        Dissimilarity threshold for clustering. If None, an automatic threshold is calculated 
+        based on the average dissimilarity (default: None).
+    :param parse: bool
+        If True, parse the clusters into lists of grouped indices.
+    :param verbose: bool
+        If True, print additional information such as the number of clusters (default: False).
+    :return: 
+        clusters: ndarray
+            Cluster labels for each signal.
+        parsed_clusters: list (optional)
+            Parsed clusters as groups of indices (if `parse=True`).
+    """
+    # Compute the distance matrix (1 - absolute correlation)
+    distance_matrix = 1 - np.abs(correlation_matrix)
+    np.fill_diagonal(distance_matrix, 0)  # Set diagonal to 0 (self-distance)
+
+    # Convert to condensed distance matrix for linkage
+    condensed_dist = squareform(distance_matrix, checks=False)
+
+    # Automatically determine the threshold if not provided
+    if threshold is None:
+        threshold = np.mean(condensed_dist)  # Use the mean of the condensed distance matrix
+        if verbose:
+            print(f"Automatically determined threshold: {threshold:.4f}")
+
+    # Perform hierarchical clustering
+    linkage_matrix = linkage(condensed_dist, method='average')
+    clusters = fcluster(linkage_matrix, threshold, criterion='distance')
+
+    # Parse clusters into groups of indices if required
+    parsed_clusters = None
+    if parse:
+        parsed_clusters = {}
+        for idx, cluster_id in enumerate(clusters):
+            if cluster_id not in parsed_clusters:
+                parsed_clusters[cluster_id] = []
+            parsed_clusters[cluster_id].append(idx)
+        parsed_clusters = list(parsed_clusters.values())
+
+        # Optionally print the number of clusters
+        if verbose:
+            print(f"The number of clusters: {len(parsed_clusters)}")
+
+    return (clusters, parsed_clusters) if parse else clusters
 
 def parse_clusters(cluster_labels):
     """
@@ -36,17 +77,98 @@ def parse_clusters(cluster_labels):
     group_dict = defaultdict(list)
     for idx, label in enumerate(cluster_labels):
         group_dict[label].append(idx)
+        
+        print(f"Cluster {label}: Index {idx}")
     return group_dict
+
+def plot_3d_channels(distribution, clusters):
+    """
+    绘制 3D 通道分布，并按组用颜色区分。
+    :param distribution: 包含 x, y, z 坐标和分组信息的 DataFrame
+    """
+    distribution['group'] = clusters
+    
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # 获取唯一组标签
+    unique_groups = distribution['group'].unique()
+
+    colormap = plt.colormaps['viridis']  # 获取调色盘
+    colors = [colormap(i / len(unique_groups)) for i in range(len(unique_groups))]  # 动态分配颜色
+    
+    for idx, group in enumerate(unique_groups):
+        group_data = distribution[distribution['group'] == group]
+        ax.scatter(
+            group_data['x'], group_data['y'], group_data['z'],
+            label=f"Group {group}",
+            color=colors[idx],  # 通过索引访问颜色
+            s=50  # 点的大小
+            )
+        # 添加文本标签
+        for _, row in group_data.iterrows():
+            ax.text(row['x'], row['y'], row['z'], row['channel'], fontsize=8)
+
+    ax.set_title("3D Channel Distribution with Groups")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+    ax.legend()
+    plt.show()
+
+def plot_3d_channels_(distribution, clusters):
+    """
+    绘制 3D 通道分布，并按组用颜色区分，同时圈出相同组的点。
+    :param distribution: 包含 x, y, z 坐标和分组信息的 DataFrame
+    """
+    distribution['group'] = clusters
+    
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    # 获取唯一组标签
+    unique_groups = distribution['group'].unique()
+    colormap = plt.colormaps['tab10']  # 获取调色盘
+    colors = [colormap(i / len(unique_groups)) for i in range(len(unique_groups))]  # 动态分配颜色
+
+    for idx, group in enumerate(unique_groups):
+        group_data = distribution[distribution['group'] == group]
+        # 绘制组内的点
+        ax.scatter(
+            group_data['x'], group_data['y'], group_data['z'],
+            label=f"Group {group}",
+            color=colors[idx],
+            s=50  # 点的大小
+        )
+        # 添加文本标签
+        for _, row in group_data.iterrows():
+            ax.text(row['x'], row['y'], row['z'], row['channel'], fontsize=8)
+
+        # 绘制组的边界（凸包）
+        if len(group_data) >= 4:  # 凸包要求至少 4 个点
+            points = group_data[['x', 'y', 'z']].to_numpy()
+            hull = ConvexHull(points)
+            for simplex in hull.simplices:
+                ax.plot_trisurf(
+                    points[:, 0], points[:, 1], points[:, 2],
+                    triangles=[simplex],
+                    color=colors[idx],
+                    alpha=0.2,  # 透明度
+                    edgecolor='gray'
+                )
+
+    ax.set_title("3D Channel Distribution with Groups")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+    ax.legend()
+    plt.show()
 
 fc_alpha, fc_beta, fc_gamma = fc.load_global_averages()
 
 # 使用层次聚类划分
-cluster_labels = hierarchical_clustering(fc_gamma, threshold=0.5)
-print("层次聚类结果:", cluster_labels)
+clusters,parsed_clusters = hierarchical_clustering(fc_alpha, threshold=None, parse=True, verbose=True)
+    
+distribution = utils.get_distribution()
 
-# 解析聚类结果
-groups = parse_clusters(cluster_labels)
-
-# 打印分组结果
-for label, indices in groups.items():
-    print(f"聚类 {label}: 信号索引 {indices}")
+plot_3d_channels_(distribution, clusters)
