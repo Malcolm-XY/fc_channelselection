@@ -10,6 +10,33 @@ import numpy
 import h5py
 import scipy
 
+# %% Read .mat
+def read_mat(path_file, transpose=False, stack=False):
+    if not os.path.exists(path_file):
+        raise FileNotFoundError(f"File not found: {path_file}")
+
+    try:
+        with h5py.File(path_file, 'r') as f:
+            print("HDF5 format detected.")
+            mat_data = {
+                key: numpy.array(f[key]).T if isinstance(f[key], h5py.Dataset) and len(f[key].shape) >= 2 else numpy.array(f[key])
+                for key in f.keys()
+            }
+
+    except OSError:
+        print("Not an HDF5 format.")
+        mat_data = scipy.io.loadmat(path_file)
+        if transpose:
+            mat_data = {
+                key: value.T if isinstance(value, numpy.ndarray) and value.ndim >= 2 else value
+                for key, value in mat_data.items() if not key.startswith('__')
+            }
+            if stack:
+                mat_data = numpy.vstack([mat_data[key] for key in sorted(mat_data.keys())])
+
+    return mat_data
+
+# %% Lables
 def get_label():
     # path
     path_current = os.getcwd()
@@ -32,6 +59,7 @@ def raed_labels(path_txt):
     
     return labels
 
+# %% Distribution .txt
 def get_distribution():
     # path
     path_current = os.getcwd()
@@ -51,6 +79,7 @@ def read_distribution(path_txt):
     
     return distribution
 
+# %% Read Calculated Functional Connectivity .mat files
 def load_cmdata2d(selected_feature, selected_band, experiment, imshow=False):
     """
     根据选择的特征和频段加载对应的共现矩阵数据。
@@ -168,11 +197,11 @@ def get_cmdata(feature, experiment):
     path_data = os.path.join(path_parent, 'data', 'SEED', 'functional connectivity', feature, experiment + '.mat')
     
     # cmdata
-    cmdata = read_mat(path_data)
+    cmdata = read_cmmat(path_data)
     
     return cmdata
 
-def read_mat(path_file):
+def read_cmmat(path_file):
     # 确保文件存在
     if not os.path.exists(path_file):
         raise FileNotFoundError(f"File not found: {path_file}")
@@ -218,8 +247,8 @@ def cmdata_reshaper(mat_data):
 
     return mat_data
 
+# %% Visualization
 import matplotlib.pyplot as plt
-
 def draw_projection(sample_projection):
     if sample_projection.ndim == 2:
         # Visualize the 2D matrix
@@ -243,9 +272,14 @@ def draw_projection(sample_projection):
 
 # %% Example Usage
 if __name__ == '__main__':
-    cmdata1d_joint = load_cmdata1d('PLV', 'joint', 'sub1ex1')
-    cmdata1d_gamma = load_cmdata1d('PLV', 'gamma', 'sub1ex1')
-    cmdata2d_joint = load_cmdata2d('PLV', 'joint', 'sub1ex1')
-    cmdata2d_gamma = load_cmdata2d('PLV', 'gamma', 'sub1ex1')
+    # cmdata1d_joint = load_cmdata1d('PLV', 'joint', 'sub1ex1')
+    # cmdata1d_gamma = load_cmdata1d('PLV', 'gamma', 'sub1ex1')
+    # cmdata2d_joint = load_cmdata2d('PLV', 'joint', 'sub1ex1')
+    # cmdata2d_gamma = load_cmdata2d('PLV', 'gamma', 'sub1ex1')
     
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    path_folder = os.path.join(path_parent, 'data', 'SEED', 'original eeg', 'Preprocessed_EEG')
+    path_file = os.path.join(path_folder, '1_20131027.mat')
     
+    eeg_mat = read_mat(path_file, transpose=True, stack=True)

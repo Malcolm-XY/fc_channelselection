@@ -36,7 +36,7 @@ def hierarchical_clustering(correlation_matrix, threshold=None, parse=False, ver
             Parsed clusters as groups of indices (if `parse=True`).
     """
     # Compute the distance matrix (1 - absolute correlation)
-    distance_matrix = 1 - np.abs(correlation_matrix)
+    distance_matrix = 1 - correlation_matrix
     np.fill_diagonal(distance_matrix, 0)  # Set diagonal to 0 (self-distance)
 
     # Convert to condensed distance matrix for linkage
@@ -167,8 +167,8 @@ def plot_3d_channels_(distribution, clusters):
 fc_alpha, fc_beta, fc_gamma = fc.load_global_averages()
 
 # 使用层次聚类划分
-clusters,parsed_clusters = hierarchical_clustering(fc_alpha, threshold=0.3, parse=True, verbose=True)
-    
+clusters, parsed_clusters = hierarchical_clustering(fc_gamma, threshold=0.5, parse=True, verbose=True)
+
 distribution = utils.get_distribution()
 
 plot_3d_channels_(distribution, clusters)
