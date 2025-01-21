@@ -11,7 +11,16 @@ import scipy
 
 import mne
 
-def read_eeg_mat(path_file, transpose=False, stack=False):
+def read_eeg(subject, experiment, transpose=False, stack=True):
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    path_folder = os.path.join(path_parent, 'data', 'SEED', 'original eeg', 'Preprocessed_EEG')
+    path_file = os.path.join(path_folder, subject+experiment+'.mat')
+    
+    eeg_mat = read_mat(path_file, transpose=transpose, stack=stack)
+    return eeg_mat
+
+def read_mat(path_file, transpose=False, stack=False):
     if not os.path.exists(path_file):
         raise FileNotFoundError(f"File not found: {path_file}")
 
@@ -33,6 +42,13 @@ def read_eeg_mat(path_file, transpose=False, stack=False):
             }
             if stack:
                 mat_data = numpy.vstack([mat_data[key] for key in sorted(mat_data.keys())])
+        else:
+            mat_data = {
+                key: value if isinstance(value, numpy.ndarray) and value.ndim >= 2 else value
+                for key, value in mat_data.items() if not key.startswith('__')
+            }
+            if stack:
+                mat_data = numpy.hstack([mat_data[key] for key in sorted(mat_data.keys())])
 
     return mat_data
 
@@ -41,13 +57,46 @@ def load_eegdata():
     path_parent = os.path.dirname(path_current)
     path_folder = os.path.join(path_parent, 'data', 'SEED', 'original eeg', 'Preprocessed_EEG')
 
-path_current = os.getcwd()
-path_parent = os.path.dirname(path_current)
-path_folder = os.path.join(path_parent, 'data', 'SEED', 'original eeg', 'Preprocessed_EEG')
-path_file = os.path.join(path_folder, '1_20131027.mat')
+def filter_eeg(eeg, freq=200, verbose=False):
+    info = mne.create_info(ch_names=['Ch' + str(i) for i in range(eeg.shape[0])], sfreq=freq, ch_types='eeg')
+    mneeeg = mne.io.RawArray(eeg, info)
     
-eeg_mat = read_eeg_mat(path_file, transpose=True, stack=True)
+    freq_bands = {
+        "Delta": (0.5, 4),
+        "Theta": (4, 8),
+        "Alpha": (8, 13),
+        "Beta": (13, 30),
+        "Gamma": (30, 99),
+    }
+    
+    band_filtered_eeg = {}
 
-raw = mne.io.read_raw(path_file, preload=True)
+    for band, (low_freq, high_freq) in freq_bands.items():
+        filtered_eeg = mneeeg.copy().filter(l_freq=low_freq, h_freq=high_freq, method="fir", phase="zero-double")
+        band_filtered_eeg[band] = filtered_eeg
+        if verbose:
+            print(f"{band} band filtered: {low_freq}–{high_freq} Hz")
 
-print(f"数据加载成功，采样率: {raw.info['sfreq']} Hz, 通道数: {len(raw.ch_names)}")
+    return band_filtered_eeg
+
+def filter_eeg_and_save(subject, experiment, verbose=True):
+    eeg = read_eeg(subject, experiment)  # 假设这个函数已经定义
+    
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    path_folder = os.path.join(path_parent, 'data', 'SEED', 'original eeg', 'Filtered_EEG')
+    os.makedirs(path_folder, exist_ok=True)  # 确保目标文件夹存在
+    
+    # 调用 filter_eeg 函数
+    filtered_eeg_dict = filter_eeg(eeg, verbose=verbose)
+    
+    # 保存每个频段的数据
+    for band, filtered_eeg in filtered_eeg_dict.items():
+        path_file = os.path.join(path_folder, f"{subject}{experiment}_{band}.fif")
+        filtered_eeg.save(path_file, overwrite=True)
+        if verbose:
+            print(f"Saved {band} band filtered EEG to {path_file}")
+    
+    return filtered_eeg_dict
+    
+band_filtered_eeg = filter_eeg_and_save('sub1','ex1')
