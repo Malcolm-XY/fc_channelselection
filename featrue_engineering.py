@@ -99,4 +99,7 @@ def filter_eeg_and_save(subject, experiment, verbose=True):
     
     return filtered_eeg_dict
     
-band_filtered_eeg = filter_eeg_and_save('sub1','ex1')
+# %% Usage
+for subject in range(1,6):
+    for experiment in range(1,4):
+        band_filtered_eeg = filter_eeg_and_save(f"sub{subject}", f"ex{experiment}")
