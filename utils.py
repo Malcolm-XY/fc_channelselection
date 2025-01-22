@@ -36,6 +36,15 @@ def read_mat(path_file, transpose=False, stack=False):
 
     return mat_data
 
+def read_eeg(experiment, transpose=False, stack=True):
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    path_folder = os.path.join(path_parent, 'data', 'SEED', 'original eeg', 'Preprocessed_EEG')
+    path_file = os.path.join(path_folder, experiment+'.mat')
+    
+    eeg_mat = read_mat(path_file, transpose=transpose, stack=stack)
+    return eeg_mat
+
 # %% Lables
 def get_label():
     # path
@@ -69,11 +78,25 @@ def get_distribution():
                                      'electrode distribution', 
                                      'biosemi62_64_channels_original_distribution.txt')
     
-    distribution = read_distribution(path_distribution)
+    distribution = read_txt(path_distribution)
     
     return distribution
+
+def get_electrodes():
+    # path
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
     
-def read_distribution(path_txt):
+    path_distribution = os.path.join(path_parent, 'data', 'SEED', 
+                                     'electrode distribution', 
+                                     'biosemi62_64_channels_original_distribution.txt')
+    
+    distribution = read_txt(path_distribution)
+    electrodes = distribution['channel']
+    
+    return electrodes
+
+def read_txt(path_txt):
     # read txt; channel distribution
     distribution = pandas.read_csv(path_txt, sep='\t')
     
@@ -272,14 +295,14 @@ def draw_projection(sample_projection):
 
 # %% Example Usage
 if __name__ == '__main__':
-    # cmdata1d_joint = load_cmdata1d('PLV', 'joint', 'sub1ex1')
-    # cmdata1d_gamma = load_cmdata1d('PLV', 'gamma', 'sub1ex1')
-    # cmdata2d_joint = load_cmdata2d('PLV', 'joint', 'sub1ex1')
-    # cmdata2d_gamma = load_cmdata2d('PLV', 'gamma', 'sub1ex1')
+    electrodes = get_electrodes()
     
-    path_current = os.getcwd()
-    path_parent = os.path.dirname(path_current)
-    path_folder = os.path.join(path_parent, 'data', 'SEED', 'original eeg', 'Preprocessed_EEG')
-    path_file = os.path.join(path_folder, '1_20131027.mat')
+    eeg_mat = read_eeg("sub1ex1")
     
-    eeg_mat = read_mat(path_file, transpose=True, stack=True)
+    cmdata1d_joint = load_cmdata1d('PLV', 'joint', 'sub1ex1')
+    cmdata1d_gamma = load_cmdata1d('PLV', 'gamma', 'sub1ex1')
+    
+    cmdata2d_joint = load_cmdata2d('PLV', 'joint', 'sub1ex1')
+    cmdata2d_gamma = load_cmdata2d('PLV', 'gamma', 'sub1ex1')
+    
+
