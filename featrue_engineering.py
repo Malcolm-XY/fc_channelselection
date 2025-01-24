@@ -156,68 +156,85 @@ def filter_eeg_and_save_circle():
             filter_eeg_and_save(f"sub{subject}ex{experiment}")
             
 # %% feature engineering
-def compute_pcc(eeg, window=1, sampling_rate=200):
-    if type(eeg) == "numpy.adarray":
-        channels, points = eeg.shape
-        # ** calcualte pcc: sampeles x channels x channels
-    
-    if type(eeg) == "dict":
-        eeg['alpha'].shape
+def compute_temporal_connectivity(experiment, method, freq_band, 
+                                  window=1, overlap=0, verbose=True, visualization=True):
+    filtered_eeg = read_filtered_eegdata(experiment, freq_band=freq_band)
+    eeg = filtered_eeg.get_data()
 
-# def compute_functional_network(eeg, fre_band, start, window, ):
+# %% spectral connectivity
+def compute_spectral_connectivity(experiment, method, freq_band, 
+                                  window=1, overlap=0, freq_density=1, verbose=True):
+    # %% asign eeg
+    _, eeg = read_eeg(experiment)
+    epochs = mne.make_fixed_length_epochs(eeg, duration=window, overlap=0)
     
+    try:
+        _, eeg = read_eeg(experiment)
+    except FileNotFoundError as e:
+        raise ValueError(f"Experiment file not found: {experiment}") from e
+    
+    # parameters
+    fmin, fmax = 2, 50
+    freqs = numpy.linspace(fmin, fmax, int((fmax-fmin)/freq_density))
+    
+    if freq_band:
+        freq_band_map = {
+            "alpha": (8, 13),
+            "beta": (13, 30),
+            "gamma": (30, 50),
+            "theta": (2, 4),
+            "delta": (4, 8),
+        }
+        if freq_band in freq_band_map:
+            fmin, fmax = freq_band_map[freq_band]
+        else:
+            raise ValueError(f"Invalid freq_band '{freq_band}'. Choose from {list(freq_band_map.keys())}.")
+  
+    # %% compute spectral connectivity
+    con = spectral_connectivity_time(epochs, freqs=freqs, method=method,
+        fmin=fmin, fmax=fmax, faverage=True, verbose=True)
+    
+    conn_matrix = con.get_data()
+    conn_matrix = numpy.mean(conn_matrix, axis=(2))
+    n_channels = int(numpy.sqrt(conn_matrix.shape[1]))
+    conn_matrix = conn_matrix.reshape((-1, n_channels, n_channels))
+    
+    # %% visualization; matplot
+    if verbose:
+        # get labels
+        labels = eeg.ch_names
+        
+        # get conn matrix
+        conn_matrix_avg = numpy.mean(conn_matrix, axis=(0))
+        
+        # plot heatmap
+        plt.figure(figsize=(18, 15))
+        plt.imshow(conn_matrix_avg, cmap='viridis', origin='lower')
+        plt.colorbar(label='Connectivity Strength')
+        plt.title('Functional Connectivity Matrix')
+        plt.xlabel('Channels')
+        plt.ylabel('Channels')
+
+        plt.xticks(range(n_channels), labels, rotation=90)
+        plt.yticks(range(n_channels), labels)
+
+        plt.show()
+        
+        # %% visualization; mne
+        plot_connectivity_circle(conn_matrix_avg, node_names=labels, 
+                                 n_lines=62, title= 'Top Functional Connections',
+                                 facecolor='white', textcolor='black')
+
+    return conn_matrix
 
 # %% usage
 if __name__ == "__main__":
-    ee, eeg = read_eeg("sub1ex1")
+    eeg_mat, eeg = read_eeg("sub1ex1")
+    epochs = mne.make_fixed_length_epochs(eeg, duration=1, overlap=0)
+    epoched = epochs.get_data()
+    
     # filtered_eeg = filter_eeg(eeg)
-    # filtered_eeg = read_filtered_eegdata("sub1ex1", freq_band="joint")
+    filtered_eeg = read_filtered_eegdata("sub1ex1", freq_band="gamma")
     
-    # %%
-    # # 加载EEG数据
-    data = eeg
-    
-    # 设置参数
-    sfreq = 200  # 采样频率 (Hz)
-    fmin, fmax = 8, 12  # 感兴趣的频率范围 (Hz)
-    method = 'pli'  # 连接度量方法
-    indices = None  # 计算所有信号对之间的连接
-    
-    # 计算频谱连接
-    con = spectral_connectivity_time(
-        data,
-        method=method,
-        sfreq=sfreq,
-        fmin=fmin,
-        fmax=fmax,
-        faverage=True,  # 对频率进行平均
-        verbose=True
-        )
-
-    
-    # %%
-    # 输出功能连接矩阵形状
-    print("Connectivity matrix shape:", con.get_data().shape)
-    
-    # 获取连接矩阵
-    conn_matrix = con.get_data()
-    conn_matrix = numpy.squeeze(conn_matrix)  # 去掉单一维度
-    n_channels = int(numpy.sqrt(conn_matrix.shape[0]))  # 计算通道数量
-    conn_matrix = conn_matrix.reshape((n_channels, n_channels))
-    
-    # 绘制热力图
-    plt.figure(figsize=(10, 8))
-    plt.imshow(conn_matrix, cmap='viridis', origin='lower')
-    plt.colorbar(label='Connectivity Strength')
-    plt.title('Functional Connectivity Matrix')
-    plt.xlabel('Channels')
-    plt.ylabel('Channels')
-    plt.show()
-    
-    # 获取通道名称
-    labels = eeg.ch_names
-    
-    # 可视化前 n 个最强连接
-    plot_connectivity_circle(conn_matrix, node_names=labels, 
-                             n_lines=62, title= 'Top Functional Connections',
-                             facecolor='white', textcolor='black')
+    eeg = filtered_eeg.get_data()
+    # pli = compute_spectral_connectivity("sub1ex1", "pli", "gamma", window=3000)
