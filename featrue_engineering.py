@@ -151,7 +151,7 @@ def filter_eeg_and_save(experiment, verbose=True):
     return filtered_eeg_dict
     
 def filter_eeg_and_save_circle():
-    for subject in range(6,16):
+    for subject in range(1,16):
         for experiment in range(1,4):
             filter_eeg_and_save(f"sub{subject}ex{experiment}")
             
