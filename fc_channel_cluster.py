@@ -164,11 +164,28 @@ def plot_3d_channels_(distribution, clusters):
     ax.legend()
     plt.show()
 
-fc_alpha, fc_beta, fc_gamma = fc.load_global_averages()
-
-# 使用层次聚类划分
-clusters, parsed_clusters = hierarchical_clustering(fc_gamma, threshold=0.5, parse=True, verbose=True)
-
-distribution = utils.get_distribution()
-
-plot_3d_channels_(distribution, clusters)
+if __name__ == "__main__":
+    # Load global averages for different frequency bands
+    global_avg_alpha, global_avg_beta, global_avg_gamma = fc.load_global_averages()
+    
+    utils.draw_projection(global_avg_alpha)
+    utils.draw_projection(global_avg_beta)
+    utils.draw_projection(global_avg_gamma)
+    
+    # Perform hierarchical clustering for each band
+    clusters_alpha_dict, clustered_alpha_channels = hierarchical_clustering(global_avg_alpha, threshold=0.5, parse=True, verbose=True)
+    clusters_beta_dict, clustered_beta_channels = hierarchical_clustering(global_avg_beta, threshold=0.5, parse=True, verbose=True)
+    clusters_gamma_dict, clustered_gamma_channels = hierarchical_clustering(global_avg_gamma, threshold=0.5, parse=True, verbose=True)
+    
+    # Load channel distribution data
+    channel_distribution = utils.get_distribution()
+    
+    # Plot clusters in 3D space
+    plot_3d_channels_(channel_distribution, clusters_alpha_dict)
+    plot_3d_channels_(channel_distribution, clusters_beta_dict)
+    plot_3d_channels_(channel_distribution, clusters_gamma_dict)
+    
+    # Extract channel names for alpha clusters
+    clustered_alpha_channel_names = [channel_distribution["channel"][idx] for idx in clustered_alpha_channels]
+    clustered_beta_channel_names = [channel_distribution["channel"][idx] for idx in clustered_beta_channels]
+    clustered_gamma_channel_names = [channel_distribution["channel"][idx] for idx in clustered_gamma_channels]
