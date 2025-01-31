@@ -143,7 +143,7 @@ def filter_eeg_and_save(experiment, verbose=True):
     
     # 保存每个频段的数据
     for band, filtered_eeg in filtered_eeg_dict.items():
-        path_file = os.path.join(path_folder, f"{experiment}_{band}.fif")
+        path_file = os.path.join(path_folder, f"{experiment}_{band}_eeg.fif")
         filtered_eeg.save(path_file, overwrite=True)
         if verbose:
             print(f"Saved {band} band filtered EEG to {path_file}")
@@ -165,13 +165,12 @@ def compute_temporal_connectivity(experiment, method, freq_band,
 def compute_spectral_connectivity(experiment, method, freq_band, 
                                   window=1, overlap=0, freq_density=1, verbose=True):
     # %% asign eeg
-    _, eeg = read_eeg(experiment)
-    epochs = mne.make_fixed_length_epochs(eeg, duration=window, overlap=0)
-    
     try:
         _, eeg = read_eeg(experiment)
     except FileNotFoundError as e:
         raise ValueError(f"Experiment file not found: {experiment}") from e
+    
+    epochs = mne.make_fixed_length_epochs(eeg, duration=window, overlap=0)
     
     # parameters
     fmin, fmax = 2, 50
