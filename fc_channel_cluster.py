@@ -16,7 +16,7 @@ from scipy.spatial import ConvexHull
 import utils
 import fc_computer as fc
 
-def hierarchical_clustering(correlation_matrix, threshold=None, parse=False, verbose=False):
+def hierarchical_clustering(distance_matrix, threshold=None, parse=False, verbose=False):
     """
     Perform hierarchical clustering to group signals based on a correlation matrix.
 
@@ -35,8 +35,7 @@ def hierarchical_clustering(correlation_matrix, threshold=None, parse=False, ver
         parsed_clusters: list (optional)
             Parsed clusters as groups of indices (if `parse=True`).
     """
-    # Compute the distance matrix (1 - absolute correlation)
-    distance_matrix = 1 - correlation_matrix
+    # Compute the distance matrix
     np.fill_diagonal(distance_matrix, 0)  # Set diagonal to 0 (self-distance)
 
     # Convert to condensed distance matrix for linkage
@@ -172,10 +171,19 @@ if __name__ == "__main__":
     utils.draw_projection(global_avg_beta)
     utils.draw_projection(global_avg_gamma)
     
+    # transform to distance matrix
+    distance_matrix_alpha = 1 - global_avg_alpha
+    distance_matrix_beta = 1 - global_avg_beta
+    distance_matrix_gamma = 1 - global_avg_gamma
+    
+    utils.draw_projection(distance_matrix_alpha)
+    utils.draw_projection(distance_matrix_beta)
+    utils.draw_projection(distance_matrix_gamma)
+    
     # Perform hierarchical clustering for each band
-    clusters_alpha_dict, clustered_alpha_channels = hierarchical_clustering(global_avg_alpha, threshold=0.5, parse=True, verbose=True)
-    clusters_beta_dict, clustered_beta_channels = hierarchical_clustering(global_avg_beta, threshold=0.5, parse=True, verbose=True)
-    clusters_gamma_dict, clustered_gamma_channels = hierarchical_clustering(global_avg_gamma, threshold=0.5, parse=True, verbose=True)
+    clusters_alpha_dict, clustered_alpha_channels = hierarchical_clustering(distance_matrix_alpha, threshold=0.5, parse=True, verbose=True)
+    clusters_beta_dict, clustered_beta_channels = hierarchical_clustering(distance_matrix_beta, threshold=0.5, parse=True, verbose=True)
+    clusters_gamma_dict, clustered_gamma_channels = hierarchical_clustering(distance_matrix_gamma, threshold=0.5, parse=True, verbose=True)
     
     # Load channel distribution data
     channel_distribution = utils.get_distribution()
