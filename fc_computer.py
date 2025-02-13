@@ -106,6 +106,51 @@ def get_averaged_fcnetwork(feature, subjects=range(1,16), experiments=range(1,4)
     
     return global_alpha_average, global_beta_average, global_gamma_average
 
+def compute_corr_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=True, visualization=True):
+    """
+    Compute correlation matrices for EEG data using a sliding window approach.
+    
+    Parameters:
+        eeg_data (numpy.ndarray): EEG data with shape (channels, time_samples).
+        samplingrate (int): Sampling rate of the EEG data in Hz.
+        window (float): Window size in seconds for segmenting EEG data.
+        overlap (float): Overlap fraction between consecutive windows (0 to 1).
+        verbose (bool): If True, prints progress.
+        visualization (bool): If True, displays correlation matrices.
+    
+    Returns:
+        list of numpy.ndarray: List of correlation matrices for each window.
+    """
+    # Compute step size based on overlap
+    step = int(samplingrate * window * (1 - overlap))  # Step size for moving window
+    segment_length = int(samplingrate * window)
+
+    # Split EEG data into overlapping windows
+    split_segments = [
+        eeg_data[:, i:i + segment_length] 
+        for i in range(0, eeg_data.shape[1] - segment_length + 1, step)
+    ]
+
+    # Compute correlation matrices
+    corr_matrices = []
+    for idx, segment in enumerate(split_segments):
+        if segment.shape[1] < segment_length:
+            continue  # Skip incomplete segments
+        
+        # Compute Pearson correlation
+        corr_matrix = np.corrcoef(segment)
+        corr_matrices.append(corr_matrix)
+
+        if verbose:
+            print(f"Computed correlation matrix {idx + 1}/{len(split_segments)}")
+
+    # Optional: Visualization of correlation matrices
+    if visualization and corr_matrices:
+        avg_corr_matrix = np.mean(corr_matrices, axis=0)
+        draw_projection(avg_corr_matrix)
+
+    return corr_matrices
+
 if __name__ == '__main__':
     get_averaged_fcnetwork('PCC', save=True)
     # get_averaged_fcnetwork('PLV', save=True)

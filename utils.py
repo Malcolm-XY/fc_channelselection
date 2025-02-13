@@ -1,230 +1,36 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Sep 30 21:18:58 2024
+Created on Tue Feb  4 15:43:46 2025
 
-@author: 18307
+@author: usouu
 """
+
 import os
-import pandas
-import numpy
 import h5py
-import scipy
 
-# %% Read .mat
-def read_mat(path_file, transpose=False, stack=False):
-    if not os.path.exists(path_file):
-        raise FileNotFoundError(f"File not found: {path_file}")
+import numpy as np
+import pandas as pd
 
-    try:
-        with h5py.File(path_file, 'r') as f:
-            print("HDF5 format detected.")
-            mat_data = {
-                key: numpy.array(f[key]).T if isinstance(f[key], h5py.Dataset) and len(f[key].shape) >= 2 else numpy.array(f[key])
-                for key in f.keys()
-            }
+import scipy.io
+import scipy.ndimage
+import matplotlib.pyplot as plt
 
-    except OSError:
-        print("Not an HDF5 format.")
-        mat_data = scipy.io.loadmat(path_file)
-        if transpose:
-            mat_data = {
-                key: value.T if isinstance(value, numpy.ndarray) and value.ndim >= 2 else value
-                for key, value in mat_data.items() if not key.startswith('__')
-            }
-            if stack:
-                mat_data = numpy.vstack([mat_data[key] for key in sorted(mat_data.keys())])
+import mne
 
-    return mat_data
-
-def read_eeg(experiment, transpose=False, stack=True):
-    path_current = os.getcwd()
-    path_parent = os.path.dirname(path_current)
-    path_folder = os.path.join(path_parent, 'data', 'SEED', 'original eeg', 'Preprocessed_EEG')
-    path_file = os.path.join(path_folder, experiment+'.mat')
-    
-    eeg_mat = read_mat(path_file, transpose=transpose, stack=stack)
-    return eeg_mat
-
-# %% Lables
-def get_label():
-    # path
-    path_current = os.getcwd()
-    path_parent = os.path.dirname(path_current)
-    
-    path_labels = os.path.join(path_parent, 'data', 'SEED', 'functional connectivity', 'labels.txt')
-    
-    # read txt; original channel distribution
-    labels = pandas.read_csv(path_labels, sep='\t', header=None).to_numpy().flatten()
-    
-    print('Labels Reading Done')
-    
-    return labels
-
-def raed_labels(path_txt):
-    # read txt; original channel distribution
-    labels = pandas.read_csv(path_txt, sep='\t', header=None).to_numpy().flatten()
-    
-    print('Labels Reading Done')
-    
-    return labels
-
-# %% Distribution .txt
-def get_distribution():
-    # path
-    path_current = os.getcwd()
-    path_parent = os.path.dirname(path_current)
-    
-    path_distribution = os.path.join(path_parent, 'data', 'SEED', 
-                                     'electrode distribution', 
-                                     'biosemi62_64_channels_original_distribution.txt')
-    
-    distribution = read_txt(path_distribution)
-    
-    return distribution
-
-def get_electrodes():
-    # path
-    path_current = os.getcwd()
-    path_parent = os.path.dirname(path_current)
-    
-    path_distribution = os.path.join(path_parent, 'data', 'SEED', 
-                                     'electrode distribution', 
-                                     'biosemi62_64_channels_original_distribution.txt')
-    
-    distribution = read_txt(path_distribution)
-    electrodes = distribution['channel']
-    
-    return electrodes
-
-def read_txt(path_txt):
-    # read txt; channel distribution
-    distribution = pandas.read_csv(path_txt, sep='\t')
-    
-    return distribution
-
-# %% Read Calculated Functional Connectivity .mat files
-def load_cmdata2d(selected_feature, selected_band, experiment, imshow=False):
+# %% Common Functions
+def read_mat(path_file, simplify=True):
     """
-    根据选择的特征和频段加载对应的共现矩阵数据。
-
-    Args:
-        selected_feature (str): 选择的特征类型 ('PCC' 或 'PLV')。
-        selected_band (str): 选择的频段 ('alpha', 'beta', 'gamma', 或 'joint')。
-
-    Returns:
-        numpy.ndarray: 根据选择的特征和频段返回的共现矩阵数据。
-
-    Raises:
-        ValueError: 当选择的特征或频段无效时抛出。
-    """
-    if selected_feature == 'PCC':
-        cmdata = get_cmdata('PCC', experiment)
-        cmdata_alpha = cmdata['alpha']
-        cmdata_beta = cmdata['beta']
-        cmdata_gamma = cmdata['gamma']
-        if selected_band == 'alpha':
-            if imshow: draw_projection(cmdata_alpha[0])
-            return cmdata_alpha
-        elif selected_band == 'beta':
-            if imshow: draw_projection(cmdata_beta[0])
-            return cmdata_beta
-        elif selected_band == 'gamma':
-            if imshow: draw_projection(cmdata_gamma[0])
-            return cmdata_gamma
-        elif selected_band == 'joint':
-            cmdata = numpy.stack((cmdata_alpha, cmdata_beta, cmdata_gamma), axis=1)
-            if imshow: draw_projection(cmdata[0])
-            return cmdata
-        else:
-            raise ValueError(f"Invalid band selection: {selected_band}")
-
-    elif selected_feature == 'PLV':
-        cmdata = get_cmdata('PLV', experiment)
-        cmdata_alpha = cmdata['alpha']
-        cmdata_beta = cmdata['beta']
-        cmdata_gamma = cmdata['gamma']
-        if selected_band == 'alpha':
-            if imshow: draw_projection(cmdata_alpha[0])
-            return cmdata_alpha
-        elif selected_band == 'beta':
-            if imshow: draw_projection(cmdata_beta[0])
-            return cmdata_beta
-        elif selected_band == 'gamma':
-            if imshow: draw_projection(cmdata_gamma[0])
-            return cmdata_gamma
-        elif selected_band == 'joint':
-            cmdata = numpy.stack((cmdata_alpha, cmdata_beta, cmdata_gamma), axis=1)
-            if imshow: draw_projection(cmdata[0])
-            return cmdata
-        else:
-            raise ValueError(f"Invalid band selection: {selected_band}")
-
-    else:
-        raise ValueError(f"Invalid feature selection: {selected_feature}")
-
-def load_cmdata1d(selected_feature, selected_band, experiment):
-    """
-    根据选择的特征和频段加载对应的共现矩阵数据。
-
-    Args:
-        selected_feature (str): 选择的特征类型 ('PCC' 或 'PLV')。
-        selected_band (str): 选择的频段 ('alpha', 'beta', 'gamma', 或 'joint')。
-
-    Returns:
-        numpy.ndarray: 根据选择的特征和频段返回的共现矩阵数据。
-
-    Raises:
-        ValueError: 当选择的特征或频段无效时抛出。
-    """
-    if selected_feature == 'PCC':
-        cmdata = get_cmdata('PCC', experiment)
-        cmdata_alpha = cmdata['alpha'].reshape(-1, cmdata['alpha'].shape[1]**2)
-        cmdata_beta = cmdata['beta'].reshape(-1, cmdata['beta'].shape[1]**2)
-        cmdata_gamma = cmdata['gamma'].reshape(-1, cmdata['gamma'].shape[1]**2)
-        if selected_band == 'alpha':
-            return cmdata_alpha
-        elif selected_band == 'beta':
-            return cmdata_beta
-        elif selected_band == 'gamma':
-            return cmdata_gamma
-        elif selected_band == 'joint':
-            return numpy.hstack((cmdata_alpha, cmdata_beta, cmdata_gamma))
-        else:
-            raise ValueError(f"Invalid band selection: {selected_band}")
-
-    elif selected_feature == 'PLV':
-        cmdata = get_cmdata('PLV', experiment)
-        cmdata_alpha = cmdata['alpha'].reshape(-1, cmdata['alpha'].shape[1]**2)
-        cmdata_beta = cmdata['beta'].reshape(-1, cmdata['beta'].shape[1]**2)
-        cmdata_gamma = cmdata['gamma'].reshape(-1, cmdata['gamma'].shape[1]**2)
-        if selected_band == 'alpha':
-            return cmdata_alpha
-        elif selected_band == 'beta':
-            return cmdata_beta
-        elif selected_band == 'gamma':
-            return cmdata_gamma
-        elif selected_band == 'joint':
-            return numpy.hstack((cmdata_alpha, cmdata_beta, cmdata_gamma))
-        else:
-            raise ValueError(f"Invalid band selection: {selected_band}")
-
-    else:
-        raise ValueError(f"Invalid feature selection: {selected_feature}")
-
-def get_cmdata(feature, experiment):
-    # path
-    path_current = os.getcwd()
-    path_parent = os.path.dirname(path_current)
+    读取 MATLAB 的 .mat 文件。
+    - 自动支持 HDF5 格式和非 HDF5 格式。
+    - 可选简化数据结构。
     
-    # path_data
-    path_data = os.path.join(path_parent, 'data', 'SEED', 'functional connectivity', feature, experiment + '.mat')
+    参数：
+    - path_file (str): .mat 文件路径。
+    - simplify (bool): 是否简化数据结构（默认 True）。
     
-    # cmdata
-    cmdata = read_cmmat(path_data)
-    
-    return cmdata
-
-def read_cmmat(path_file):
+    返回：
+    - dict: 包含 .mat 文件数据的字典。
+    """
     # 确保文件存在
     if not os.path.exists(path_file):
         raise FileNotFoundError(f"File not found: {path_file}")
@@ -233,76 +39,300 @@ def read_cmmat(path_file):
         # 尝试以 HDF5 格式读取文件
         with h5py.File(path_file, 'r') as f:
             print("HDF5 format detected.")
-            # 提取所有键值及其数据
-            mat_data = {key: numpy.array(f[key]) for key in f.keys()}
+            data = {key: simplify_mat_structure(f[key]) for key in f.keys()} if simplify else f
+            return data
 
     except OSError:
         # 如果不是 HDF5 格式，尝试使用 scipy.io.loadmat
         print("Not an HDF5 format.")
-        mat_data = scipy.io.loadmat(path_file)
-        # 排除系统默认的键
-        mat_data = {key: mat_data[key] for key in mat_data.keys() if not key.startswith('__')}
+        mat_data = scipy.io.loadmat(path_file, squeeze_me=simplify, struct_as_record=not simplify)
+        if simplify:
+            mat_data = {key: simplify_mat_structure(value) for key, value in mat_data.items() if key[0] != '_'}
+        return mat_data
 
-    # 数据重塑（如果需要）
-    reshaped_data = {key: cmdata_reshaper(data) for key, data in mat_data.items()}
-
-    return reshaped_data
-
-def cmdata_reshaper(mat_data):
+def simplify_mat_structure(data):
     """
-    Reshapes mat_data to ensure the last two dimensions are square (n1 == n2).
-    Automatically handles transposing and validates the shape.
+    递归解析和简化 MATLAB 数据结构。
+    - 将结构体转换为字典。
+    - 将 Cell 数组转换为列表。
+    - 移除 NumPy 数组中的多余维度。
     """
-    MAX_ITER = 10  # 最大迭代次数，防止死循环
-    iteration = 0
+    if isinstance(data, h5py.Dataset):  # 处理 HDF5 数据集
+        return data[()]  # 转换为 NumPy 数组或标量
 
-    while iteration < MAX_ITER:
-        if mat_data.ndim == 3:
-            samples, n1, n2 = mat_data.shape
-            if n1 == n2:
-                break  # 如果满足条件，直接退出
-            else:
-                mat_data = numpy.transpose(mat_data, axes=(2, 0, 1))  # 转置调整维度
-        iteration += 1
+    elif isinstance(data, h5py.Group):  # 处理 HDF5 文件组
+        return {key: simplify_mat_structure(data[key]) for key in data.keys()}
 
-    else:
-        raise ValueError("Failed to reshape mat_data into (samples, n1, n2) with n1 == n2 after multiple attempts.")
+    elif isinstance(data, scipy.io.matlab.mat_struct):  # 处理 MATLAB 结构体
+        return {field: simplify_mat_structure(getattr(data, field)) for field in data._fieldnames}
 
-    return mat_data
+    elif isinstance(data, np.ndarray):  # 处理 NumPy 数组
+        if data.dtype == 'object':  # 递归解析对象数组
+            return [simplify_mat_structure(item) for item in data]
+        return data.squeeze()  # 移除多余维度
 
-# %% Visualization
-import matplotlib.pyplot as plt
+    else:  # 其他类型直接返回
+        return data
+
+def read_filtered_eegdata(folder, identifier, freq_band="Joint"):
+    """
+    Read filtered EEG data for the specified experiment and frequency band.
+
+    Parameters:
+    experiment (str): Name of the experiment (e.g., subject or session).
+    freq_band (str): Frequency band to load ("alpha", "beta", "gamma", "delta", "theta", or "joint").
+                     Default is "Joint".
+
+    Returns:
+    mne.io.Raw | dict: Returns the MNE Raw object for a single band or a dictionary of Raw objects for "joint".
+
+    Raises:
+    ValueError: If the specified frequency band is not valid.
+    FileNotFoundError: If the expected file does not exist.
+    """
+
+    try:
+        if freq_band in ["alpha", "beta", "gamma", "delta", "theta"]:
+            path_file = os.path.join(folder, f"{identifier}_{freq_band.capitalize()}_eeg.fif")
+            filtered_eeg = mne.io.read_raw_fif(path_file, preload=True)
+            return filtered_eeg
+
+        elif freq_band.lower() == "joint":
+            filtered_eeg = {}
+            for band in ["Alpha", "Beta", "Gamma", "Delta", "Theta"]:
+                path_file = os.path.join(folder, f"{identifier}_{band}_eeg.fif")
+                filtered_eeg[band.lower()] = mne.io.read_raw_fif(path_file, preload=True)
+            return filtered_eeg
+
+        else:
+            raise ValueError(f"Invalid frequency band: {freq_band}. Choose from 'alpha', 'beta', 'gamma', 'delta', 'theta', or 'joint'.")
+
+    except FileNotFoundError as e:
+        raise FileNotFoundError(f"File not found for '{identifier}' and frequency band '{freq_band}'. Check the path and file existence.")
+
 def draw_projection(sample_projection):
+    """
+    Visualizes data projections (common for both datasets).
+    """
     if sample_projection.ndim == 2:
-        # Visualize the 2D matrix
-        plt.imshow(sample_projection, cmap='viridis')  # Use 'viridis' colormap
-        plt.colorbar()  # Add a colorbar
-        plt.title("Matrix Visualization using imshow")
-        plt.xlabel("X-axis")
-        plt.ylabel("Y-axis")
+        plt.imshow(sample_projection, cmap='viridis')
+        plt.colorbar()
+        plt.title("2D Matrix Visualization")
         plt.show()
     elif sample_projection.ndim == 3 and sample_projection.shape[0] == 3:
-        # Visualize each channel of the 3D projection
-        for i, channel_projection in enumerate(sample_projection):
-            plt.imshow(channel_projection, cmap='viridis')  # Use 'viridis' colormap
-            plt.colorbar()  # Add a colorbar
-            plt.title(f"Matrix Visualization of Channel {i + 1}")
-            plt.xlabel("X-axis")
-            plt.ylabel("Y-axis")
+        for i in range(3):
+            plt.imshow(sample_projection[i], cmap='viridis')
+            plt.colorbar()
+            plt.title(f"Channel {i + 1} Visualization")
             plt.show()
+
+def read_labels(dataset='SEED'):
+    if dataset == 'SEED':
+        labels = read_labels_seed()
+    elif dataset == 'DREAMER':
+        labels = read_labels_dreamer()
+    return labels
+
+def get_distribution(mapping_method='auto'):
+    # define path
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    path_distribution = os.path.join(path_parent, 'data', 'SEED', 'electrode distribution')
+        
+    # read distribution txt
+    if mapping_method == 'auto':
+        path_ch_auto_distr = os.path.join(path_distribution, 
+                                          'biosemi62_64_channels_original_distribution.txt')
+        # read txt; channel distribution
+        distribution = pd.read_csv(path_ch_auto_distr, sep='\t')
+        
+    elif mapping_method == 'manual':
+        path_ch_manual_distr = os.path.join(path_distribution, 
+                                            'biosemi62_64_channels_manual_distribution.txt')    
+        # read txt; channel distribution
+        distribution = pd.read_csv(path_ch_manual_distr, sep='\t')
+    
+    return distribution
+
+# %% SEED Specific Functions
+def load_seed(subject, experiment, band='full'):
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    path_1 = os.path.join(path_parent, 'data', 'SEED', 'original eeg')
+    path_2 = os.path.join(path_1, 'Preprocessed_EEG')
+    path_3 = os.path.join(path_1, 'Filtered_EEG')
+    
+    identifier = f'sub{subject}ex{experiment}'
+    
+    if band == 'full':
+        path_data = os.path.join(path_2, identifier + '.mat')
+        data_temp = read_mat(path_data)
+        
+        data_list = [data_temp[dat] for dat in data_temp]
+        data = np.hstack(data_list)
+        
     else:
-        raise ValueError("Input projection sample should be a 2D array or a 3D array with 3 channels.")
+        data = read_filtered_eegdata(path_3, identifier)
+
+    return data
+
+def load_seed_filtered(subject, experiment, band='joint'):
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    folder = os.path.join(path_parent, 'data', 'SEED', 'original eeg', 'Filtered_EEG')
+    
+    identifier = f'sub{experiment}ex{experiment}'
+    
+    data = read_filtered_eegdata(folder, identifier, freq_band=band)
+    return data
+
+def load_cms_seed(experiment, feature='PCC', band='joint', imshow=True):
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    path_data = os.path.join(path_parent, 'data', 'SEED', 'functional connectivity', feature, f"{experiment}.mat")
+    cms = read_mat(path_data)
+    
+    cms_alpha = cms['alpha']
+    cms_beta = cms['beta']
+    cms_gamma = cms['gamma']
+    
+    if band == 'joint':
+        data = np.stack((cms_alpha, cms_beta, cms_gamma), axis=1)
+    else:
+        data = cms[band]
+
+    if imshow:
+       draw_projection(np.mean(data, axis=0))
+    
+    return data
+
+def read_labels_seed():
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    path_labels = os.path.join(path_parent, 'data', 'SEED', 'labels', 'labels.txt')
+    return pd.read_csv(path_labels, sep='\t', header=None).to_numpy().flatten()
+
+# %% DREAMER Specific Functions
+# original eeg; dreamer
+def load_dreamer():
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    path_data = os.path.join(path_parent, 'data', 'DREAMER', 'DREAMER.mat')
+    dreamer = read_mat(path_data)
+    eeg_dic = [np.vstack(trial["EEG"]["stimuli"]) for trial in dreamer["DREAMER"]["Data"]]
+    return dreamer, eeg_dic, dreamer["DREAMER"]["EEG_Electrodes"]
+
+def load_dreamer_filtered(experiment, band='joint'):
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    folder = os.path.join(path_parent, 'data', 'DREAMER', 'Filtered_EEG')
+    
+    identifier = f'sub{experiment}'
+    
+    data = read_filtered_eegdata(folder, identifier, freq_band=band)
+    return data
+
+def load_cms_dreamer(experiment, feature='PCC', band='joint', imshow=True):
+    # 获取当前路径及父路径
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    
+    # 根据方法选择对应文件夹
+    if feature == 'PCC':
+        path_folder = os.path.join(path_parent, 'data', 'DREAMER', 'functional connectivity', 'PCC')
+    elif feature == 'PLV':
+        path_folder = os.path.join(path_parent, 'data', 'DREAMER', 'functional connectivity', 'PLV')
+    else:
+        raise ValueError(f"Unsupported feature: {feature}")
+    
+    # 拼接数据文件路径
+    path_file = os.path.join(path_folder, f'{experiment}.npy')
+    
+    # 加载数据
+    cms_load = np.load(path_file, allow_pickle=True).item()
+    
+    # 从加载的数据中获取各频段的列表（列表中每个元素为形状 wxw 的数组）
+    cms_alpha = cms_load["alpha"]
+    cms_beta = cms_load["beta"]
+    cms_gamma = cms_load["gamma"]
+    
+    # 将列表转换为 NumPy 数组，形状为 (n_samples, w, w)
+    cms_alpha = np.array(cms_alpha)
+    cms_beta = np.array(cms_beta)
+    cms_gamma = np.array(cms_gamma)     
+        
+    # 根据 freq_band 参数返回相应的数据
+    if band == "alpha":
+        if imshow: draw_projection(np.mean(cms_alpha, axis=0))
+        return cms_alpha
+    elif band == "beta":
+        if imshow: draw_projection(np.mean(cms_beta, axis=0))
+        return cms_beta
+    elif band == "gamma":
+        if imshow: draw_projection(np.mean(cms_gamma, axis=0))
+        return cms_gamma
+    elif band == "joint":
+        joint = np.stack([cms_alpha, cms_beta, cms_gamma], axis=1)
+        if imshow: draw_projection(np.mean(joint, axis=0))
+        return joint
+    else:
+        raise ValueError(f"Unknown freq_band parameter: {band}")
+
+def read_labels_dreamer():
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    path_labels = os.path.join(path_parent, 'data', 'DREAMER', 'labels', 'labels.txt')
+    df = pd.read_csv(path_labels, sep=r'\s+', engine='python')
+    return {col: df[col].to_numpy() for col in df.columns}
+
+def normalize_to_labels(array, labels):
+    normalized = (array - np.min(array)) / (np.max(array) - np.min(array))
+    bins = np.linspace(0, 1, len(labels))
+    return np.array([labels[np.digitize(val, bins) - 1] for val in normalized])
+
+# %% Dataset Selector
+def load_dataset(dataset='SEED', **kwargs):
+    if dataset == 'SEED':
+        # return load_seed(**kwargs)
+        return None
+    elif dataset == 'DREAMER':
+        return load_dreamer(**kwargs)
+    else:
+        raise ValueError(f"Unknown dataset: {dataset}")
+        
+def load_cms(dataset='SEED', **kwargs):
+    if dataset == 'SEED':
+        return load_cms_seed(**kwargs)
+    elif dataset == 'DREAMER':
+        return load_cms_dreamer(**kwargs)
+    else:
+        raise ValueError(f"Unknown dataset: {dataset}")
 
 # %% Example Usage
 if __name__ == '__main__':
-    electrodes = get_electrodes()
+    # %% SEED
+    # dataset
+    seed_sub_sample, seed_ex_sample, seed_fre_sample1, seed_fre_sample2  = 1, 1, 'split', 'full'
+    seed_sample_1 = load_seed(seed_sub_sample, seed_ex_sample, band=seed_fre_sample1)
+    seed_sample_2 = load_seed(seed_sub_sample, seed_ex_sample, band=seed_fre_sample2)
     
-    eeg_mat = read_eeg("sub1ex1")
+    # cms
+    experiment_sample, feature_sample, freq_sample_1, freq_sample_2 = 'sub1ex1', 'PCC', 'alpha', 'joint'
+    seed_cms_sample_1 = load_cms(dataset='SEED', experiment=experiment_sample, feature=feature_sample, band=freq_sample_1)
+    seed_cms_sample_2 = load_cms(dataset='SEED', experiment=experiment_sample, feature=feature_sample, band=freq_sample_2)
     
-    cmdata1d_joint = load_cmdata1d('PLV', 'joint', 'sub1ex1')
-    cmdata1d_gamma = load_cmdata1d('PLV', 'gamma', 'sub1ex1')
+    labels_SEED = read_labels_seed()
     
-    cmdata2d_joint = load_cmdata2d('PLV', 'joint', 'sub1ex1')
-    cmdata2d_gamma = load_cmdata2d('PLV', 'gamma', 'sub1ex1')
+    # %% DREAMER
+    # dataset
+    dreamer, dreamer_eeg_, dreamer_electrodes = load_dataset(dataset='DREAMER')
+    dreamer_sub_sample, dreamer_fre_sample_1, dreamer_fre_sample_2 = 1, 'alpha', 'joint'
+    draemer_sample_1 = load_dreamer_filtered(dreamer_sub_sample, band=dreamer_fre_sample_1)
+    draemer_sample_2 = load_dreamer_filtered(dreamer_sub_sample, band=dreamer_fre_sample_2)
     
-
+    # cms
+    experiment_sample_d, feature_sample_d, freq_sample_d1, freq_sample_d2 = 'sub1', 'PCC', 'alpha', 'joint'
+    dreamer_cms_sample_1 = load_cms(dataset='DREAMER', experiment=experiment_sample_d, feature=feature_sample_d, band=freq_sample_d1)
+    dreamer_cms_sample_1 = load_cms(dataset='DREAMER', experiment=experiment_sample_d, feature=feature_sample_d, band=freq_sample_d2)
+    
+    labels_DREAMER = read_labels_dreamer()
