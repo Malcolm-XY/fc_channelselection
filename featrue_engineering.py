@@ -6,15 +6,15 @@ Created on Thu Feb 13 23:15:11 2025
 """
 
 import os
+import pickle
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from scipy.signal import hilbert
-
 import mne
-from mne_connectivity import spectral_connectivity_time
-from mne_connectivity.viz import plot_connectivity_circle
+import mne_connectivity
+from scipy.signal import hilbert
+from sklearn.feature_selection import mutual_info_regression
 
 import utils
 
@@ -41,6 +41,26 @@ def filter_eeg(eeg, freq=128, verbose=False):
 
     return band_filtered_eeg
 
+def filter_eeg_and_save_seed(subject, experiment, verbose=True):
+    eeg = utils.load_seed(subject, experiment)
+    
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    path_folder = os.path.join(path_parent, 'data', 'SEED', 'original eeg', 'Filtered_EEG')
+    os.makedirs(path_folder, exist_ok=True)
+    
+    # 调用 filter_eeg 函数
+    filtered_eeg_dict = filter_eeg(eeg, verbose=verbose)
+    
+    # 保存每个频段的数据
+    for band, filtered_eeg in filtered_eeg_dict.items():
+        path_file = os.path.join(path_folder, f"sub{subject+1}_{band}_eeg.fif")
+        filtered_eeg.save(path_file, overwrite=True)
+        if verbose:
+            print(f"Saved {band} band filtered EEG to {path_file}")
+    
+    return filtered_eeg_dict
+
 def filter_eeg_and_save_dreamer(subject, verbose=True):
     _, eeg, _ = utils.load_dreamer()
     eeg = eeg[subject].transpose()
@@ -62,7 +82,7 @@ def filter_eeg_and_save_dreamer(subject, verbose=True):
     
     return filtered_eeg_dict
                 
-def read_filtered_eegdata(identifier, freq_band="Joint"):
+def read_filtered_eegdata_dreamer(identifier, freq_band="Joint"):
     """
     Read filtered EEG data for the specified experiment and frequency band.
 
@@ -114,6 +134,64 @@ def compute_distance_matrix():
     distance_matrix = np.sqrt(np.sum(diff ** 2, axis=-1))
     
     return distance_matrix
+
+def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experiment_range=range(1, 2), freq_band='joint', save=False):
+    """
+    计算 SEED 数据集的相关矩阵，并可选保存为 pickle 文件。
+
+    参数：
+    dataset (str): 数据集名称（目前仅支持 'SEED'）。
+    subject_range (range): 被试 ID 范围，默认 1~2。
+    experiment_range (range): 实验 ID 范围，默认 1~2。
+    freq_band (str): 频带类型，可选 'alpha', 'beta', 'gamma' 或 'joint'（默认）。
+    save (bool): 是否保存结果，默认 False。
+
+    返回：
+    dict: 计算得到的相关矩阵字典。
+    """
+    if dataset.lower() != 'seed':
+        raise ValueError("当前函数仅支持 SEED 数据集")
+
+    fc_matrices_dict = {}
+
+    for subject in subject_range:
+        for experiment in experiment_range:
+            identifier = f'sub{subject}ex{experiment}'
+            eeg_data = utils.load_seed_filtered(subject, experiment)
+
+            if freq_band.lower() in ['alpha', 'beta', 'gamma']:
+                data = np.array(eeg_data[freq_band.lower()])
+                if feature.lower() == 'pcc': fc_matrices_dict[identifier] = compute_corr_matrices(data, samplingrate=200)
+                elif feature.lower() == 'plv': fc_matrices_dict[identifier] = compute_plv_matrices(data, samplingrate=200)
+                elif feature.lower() == 'mi': fc_matrices_dict[identifier] = compute_mi_matrices(data, samplingrate=200)
+
+            elif freq_band.lower() == 'joint':
+                fc_matrices_dict[identifier] = {}  # 确保是字典
+                for band in ['alpha', 'beta', 'gamma']:
+                    data = np.array(eeg_data[band])
+                    if feature.lower() == 'pcc': fc_matrices_dict[identifier] = compute_corr_matrices(data, samplingrate=200)
+                    elif feature.lower() == 'plv': fc_matrices_dict[identifier] = compute_plv_matrices(data, samplingrate=200)
+                    elif feature.lower() == 'mi': fc_matrices_dict[identifier] = compute_mi_matrices(data, samplingrate=200)
+
+            if save:
+                path_current = os.getcwd()
+                path_parent = os.path.dirname(path_current)
+                path_folder = os.path.join(path_parent, 'data', 'SEED', 'functional connectivity', f'{feature}_pkl')
+
+                # 确保目标文件夹存在
+                os.makedirs(path_folder, exist_ok=True)
+
+                if freq_band.lower() == 'joint':
+                    for band in ['alpha', 'beta', 'gamma']:
+                        file_path_band_pkl = os.path.join(path_folder, f"{identifier}_{band}.pkl")
+                        with open(file_path_band_pkl, 'wb') as f:
+                            pickle.dump(fc_matrices_dict[identifier][band], f)
+                else:
+                    file_path_pkl = os.path.join(path_folder, f"{identifier}_{freq_band.lower()}.pkl")
+                    with open(file_path_pkl, 'wb') as f:
+                        pickle.dump(fc_matrices_dict[identifier], f)
+
+    return fc_matrices_dict
 
 def compute_corr_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=True, visualization=True):
     """
@@ -213,6 +291,62 @@ def compute_plv_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=Tr
         utils.draw_projection(avg_plv_matrix)
     
     return plv_matrices
+
+def compute_mi_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=True, visualization=True):
+    """
+    Compute Mutual Information (MI) matrices for EEG data using a sliding window approach.
+
+    Parameters:
+        eeg_data (numpy.ndarray): EEG data with shape (channels, time_samples).
+        samplingrate (int): Sampling rate of the EEG data in Hz.
+        window (float): Window size in seconds for segmenting EEG data.
+        overlap (float): Overlap fraction between consecutive windows (0 to 1).
+        verbose (bool): If True, prints progress.
+        visualization (bool): If True, displays MI matrices.
+
+    Returns:
+        list of numpy.ndarray: List of MI matrices for each window.
+    """
+    step = int(samplingrate * window * (1 - overlap))  # Step size for moving window
+    segment_length = int(samplingrate * window)
+
+    # Split EEG data into overlapping windows
+    split_segments = [
+        eeg_data[:, i:i + segment_length] 
+        for i in range(0, eeg_data.shape[1] - segment_length + 1, step)
+    ]
+
+    mi_matrices = []
+    for idx, segment in enumerate(split_segments):
+        if segment.shape[1] < segment_length:
+            continue  # Skip incomplete segments
+        
+        num_channels = segment.shape[0]
+        mi_matrix = np.zeros((num_channels, num_channels))
+
+        # Compute MI matrix
+        for ch1 in range(num_channels):
+            for ch2 in range(num_channels):
+                if ch1 == ch2:
+                    mi_matrix[ch1, ch2] = 1  # Self-MI is maximal (normalized to 1)
+                else:
+                    mi_matrix[ch1, ch2] = mutual_info_regression(
+                        segment[ch1, :].reshape(-1, 1), 
+                        segment[ch2, :], 
+                        discrete_features=False
+                    )[0]
+
+        mi_matrices.append(mi_matrix)
+
+        if verbose:
+            print(f"Computed MI matrix {idx + 1}/{len(split_segments)}")
+
+    # Optional visualization
+    if visualization and mi_matrices:
+        avg_mi_matrix = np.mean(mi_matrices, axis=0)
+        utils.draw_projection(avg_mi_matrix)
+
+    return mi_matrices
 
 # %% Label Engineering
 def read_labels_dreamer():
@@ -341,5 +475,9 @@ def interpolate_matrices(data, scale_factor=(1.0, 1.0), method='nearest'):
 
 # %% usage
 if __name__ == "__main__":
-    distance_matrix = compute_distance_matrix()
-    utils.draw_projection(distance_matrix)
+    # distance_matrix = compute_distance_matrix()
+    # utils.draw_projection(distance_matrix)
+    
+    fc_pcc_matrices = fc_matrices_circle('SEED', feature='pcc', save=True, subject_range=range(1, 2), experiment_range=range(1, 4))
+    fc_plv_matrices = fc_matrices_circle('SEED', feature='plv', save=True, subject_range=range(1, 2), experiment_range=range(1, 4))
+    fc_mi_matrices = fc_matrices_circle('SEED', feature='mi', save=True, subject_range=range(1, 2), experiment_range=range(1, 4))

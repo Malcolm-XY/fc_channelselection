@@ -74,17 +74,22 @@ def simplify_mat_structure(data):
     else:  # 其他类型直接返回
         return data
 
-def read_filtered_eegdata(folder, identifier, freq_band="Joint"):
+def read_filtered_eegdata(folder, identifier, freq_band='joint', object_type='pandas_dataframe'):
     """
     Read filtered EEG data for the specified experiment and frequency band.
 
     Parameters:
-    experiment (str): Name of the experiment (e.g., subject or session).
+    folder (str): Directory containing the EEG data files.
+    identifier (str): Identifier for the subject/session.
     freq_band (str): Frequency band to load ("alpha", "beta", "gamma", "delta", "theta", or "joint").
-                     Default is "Joint".
+                     Default is "joint", which loads all bands.
+    object_type (str): Desired output format: 'pandas_dataframe', 'numpy_array', or 'mne'.
 
     Returns:
-    mne.io.Raw | dict: Returns the MNE Raw object for a single band or a dictionary of Raw objects for "joint".
+    mne.io.Raw | dict | pandas.DataFrame | numpy.ndarray:
+        - If 'mne', returns the MNE Raw object (or a dictionary of them for 'joint').
+        - If 'pandas_dataframe', returns a DataFrame with EEG data.
+        - If 'numpy_array', returns a NumPy array with EEG data.
 
     Raises:
     ValueError: If the specified frequency band is not valid.
@@ -92,22 +97,36 @@ def read_filtered_eegdata(folder, identifier, freq_band="Joint"):
     """
 
     try:
-        if freq_band in ["alpha", "beta", "gamma", "delta", "theta"]:
-            path_file = os.path.join(folder, f"{identifier}_{freq_band.capitalize()}_eeg.fif")
+        if freq_band.lower() in ['alpha', 'beta', 'gamma', 'delta', 'theta']:
+            path_file = os.path.join(folder, f'{identifier}_{freq_band.capitalize()}_eeg.fif')
             filtered_eeg = mne.io.read_raw_fif(path_file, preload=True)
-            return filtered_eeg
 
-        elif freq_band.lower() == "joint":
+            if object_type == 'pandas_dataframe':
+                return pd.DataFrame(filtered_eeg.get_data(), index=filtered_eeg.ch_names)
+            elif object_type == 'numpy_array':
+                return filtered_eeg.get_data()
+            else:
+                return filtered_eeg
+
+        elif freq_band.lower() == 'joint':
             filtered_eeg = {}
-            for band in ["Alpha", "Beta", "Gamma", "Delta", "Theta"]:
-                path_file = os.path.join(folder, f"{identifier}_{band}_eeg.fif")
-                filtered_eeg[band.lower()] = mne.io.read_raw_fif(path_file, preload=True)
+            for band in ['alpha', 'beta', 'gamma', 'delta', 'theta']:
+                path_file = os.path.join(folder, f'{identifier}_{band}_eeg.fif')
+                raw_data = mne.io.read_raw_fif(path_file, preload=True)
+
+                if object_type == 'pandas_dataframe':
+                    filtered_eeg[band.lower()] = pd.DataFrame(raw_data.get_data(), index=raw_data.ch_names)
+                elif object_type == 'numpy_array':
+                    filtered_eeg[band.lower()] = raw_data.get_data()
+                else:
+                    filtered_eeg[band.lower()] = raw_data
+
             return filtered_eeg
 
         else:
             raise ValueError(f"Invalid frequency band: {freq_band}. Choose from 'alpha', 'beta', 'gamma', 'delta', 'theta', or 'joint'.")
 
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         raise FileNotFoundError(f"File not found for '{identifier}' and frequency band '{freq_band}'. Check the path and file existence.")
 
 def draw_projection(sample_projection):
@@ -155,6 +174,7 @@ def get_distribution(mapping_method='auto'):
     return distribution
 
 # %% SEED Specific Functions
+# original eegl; seed
 def load_seed(subject, experiment, band='full'):
     path_current = os.getcwd()
     path_parent = os.path.dirname(path_current)
@@ -172,7 +192,7 @@ def load_seed(subject, experiment, band='full'):
         data = np.hstack(data_list)
         
     else:
-        data = read_filtered_eegdata(path_3, identifier)
+        data = read_filtered_eegdata(path_3, identifier, band)
 
     return data
 
