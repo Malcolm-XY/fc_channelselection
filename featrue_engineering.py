@@ -41,8 +41,8 @@ def filter_eeg(eeg, freq=128, verbose=False):
 
     return band_filtered_eeg
 
-def filter_eeg_and_save(subject, verbose=True):
-    _, eeg, _ = utils_common.load_dreamer()
+def filter_eeg_and_save_dreamer(subject, verbose=True):
+    _, eeg, _ = utils.load_dreamer()
     eeg = eeg[subject].transpose()
     
     path_current = os.getcwd()
@@ -210,7 +210,7 @@ def compute_plv_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=Tr
     # Optional visualization
     if visualization and plv_matrices:
         avg_plv_matrix = np.mean(plv_matrices, axis=0)
-        utils_common.draw_projection(avg_plv_matrix)
+        utils.draw_projection(avg_plv_matrix)
     
     return plv_matrices
 
@@ -227,7 +227,7 @@ def generate_labels(samplingrate=128):
     path_parent = os.path.dirname(path_current)
     path_data = os.path.join(path_parent, 'data', 'DREAMER', 'DREAMER.mat')
 
-    mat_data = utils_common.read_mat(path_data)
+    mat_data = utils.read_mat(path_data)
     
     # %% labels
     score_arousal = 0
