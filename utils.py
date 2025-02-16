@@ -313,8 +313,8 @@ def normalize_to_labels(array, labels):
 # %% Dataset Selector
 def load_dataset(dataset='SEED', **kwargs):
     if dataset == 'SEED':
-        # return load_seed(**kwargs)
-        return None
+        return load_seed(**kwargs)
+        # return None
     elif dataset == 'DREAMER':
         return load_dreamer(**kwargs)
     else:

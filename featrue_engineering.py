@@ -6,16 +6,17 @@ Created on Thu Feb 13 23:15:11 2025
 """
 
 import os
+import time
 import pickle
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 import mne
 import mne_connectivity
 from scipy.signal import hilbert
-from sklearn.feature_selection import mutual_info_regression
+from scipy.stats import gaussian_kde
 
+import joblib
 import utils
 
 # %% Filter EEG
@@ -135,9 +136,13 @@ def compute_distance_matrix():
     
     return distance_matrix
 
-def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experiment_range=range(1, 2), freq_band='joint', save=False):
+def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experiment_range=range(1, 2), freq_band='joint', save=False, verbose=True):
     """
     计算 SEED 数据集的相关矩阵，并可选保存为 pickle 文件。
+    
+    **新增功能**:
+    - 记录总时间
+    - 记录每个 experiment 的平均时间
 
     参数：
     dataset (str): 数据集名称（目前仅支持 'SEED'）。
@@ -145,6 +150,7 @@ def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experi
     experiment_range (range): 实验 ID 范围，默认 1~2。
     freq_band (str): 频带类型，可选 'alpha', 'beta', 'gamma' 或 'joint'（默认）。
     save (bool): 是否保存结果，默认 False。
+    verbose (bool): 是否打印计时信息，默认 True。
 
     返回：
     dict: 计算得到的相关矩阵字典。
@@ -154,25 +160,46 @@ def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experi
 
     fc_matrices_dict = {}
 
+    # **开始计时**
+    start_time = time.time()
+    experiment_count = 0  # 计数 experiment 计算次数
+    total_experiment_time = 0  # 累计 experiment 计算时间
+
     for subject in subject_range:
         for experiment in experiment_range:
+            experiment_start_time = time.time()  # 记录单次 experiment 开始时间
+            experiment_count += 1
+
             identifier = f'sub{subject}ex{experiment}'
             eeg_data = utils.load_seed_filtered(subject, experiment)
 
             if freq_band.lower() in ['alpha', 'beta', 'gamma']:
                 data = np.array(eeg_data[freq_band.lower()])
-                if feature.lower() == 'pcc': fc_matrices_dict[identifier] = compute_corr_matrices(data, samplingrate=200)
-                elif feature.lower() == 'plv': fc_matrices_dict[identifier] = compute_plv_matrices(data, samplingrate=200)
-                elif feature.lower() == 'mi': fc_matrices_dict[identifier] = compute_mi_matrices(data, samplingrate=200)
+                if feature.lower() == 'pcc': 
+                    fc_matrices_dict[identifier] = compute_corr_matrices(data, samplingrate=200)
+                elif feature.lower() == 'plv': 
+                    fc_matrices_dict[identifier] = compute_plv_matrices(data, samplingrate=200)
+                elif feature.lower() == 'mi': 
+                    fc_matrices_dict[identifier] = compute_mi_matrices(data, samplingrate=200)
 
             elif freq_band.lower() == 'joint':
                 fc_matrices_dict[identifier] = {}  # 确保是字典
                 for band in ['alpha', 'beta', 'gamma']:
                     data = np.array(eeg_data[band])
-                    if feature.lower() == 'pcc': fc_matrices_dict[identifier] = compute_corr_matrices(data, samplingrate=200)
-                    elif feature.lower() == 'plv': fc_matrices_dict[identifier] = compute_plv_matrices(data, samplingrate=200)
-                    elif feature.lower() == 'mi': fc_matrices_dict[identifier] = compute_mi_matrices(data, samplingrate=200)
+                    if feature.lower() == 'pcc': 
+                        fc_matrices_dict[identifier][band] = compute_corr_matrices(data, samplingrate=200)
+                    elif feature.lower() == 'plv': 
+                        fc_matrices_dict[identifier][band] = compute_plv_matrices(data, samplingrate=200)
+                    elif feature.lower() == 'mi': 
+                        fc_matrices_dict[identifier][band] = compute_mi_matrices(data, samplingrate=200)
 
+            # **记录单个 experiment 计算时间**
+            experiment_time = time.time() - experiment_start_time
+            total_experiment_time += experiment_time
+            if verbose:
+                print(f"Experiment {identifier} completed in {experiment_time:.2f} seconds")
+
+            # **保存计算结果**
             if save:
                 path_current = os.getcwd()
                 path_parent = os.path.dirname(path_current)
@@ -190,6 +217,14 @@ def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experi
                     file_path_pkl = os.path.join(path_folder, f"{identifier}_{freq_band.lower()}.pkl")
                     with open(file_path_pkl, 'wb') as f:
                         pickle.dump(fc_matrices_dict[identifier], f)
+
+    # **计算总时间 & 平均 experiment 时间**
+    total_time = time.time() - start_time
+    avg_experiment_time = total_experiment_time / experiment_count if experiment_count > 0 else 0
+
+    if verbose:
+        print(f"\nTotal time taken: {total_time:.2f} seconds")
+        print(f"Average time per experiment: {avg_experiment_time:.2f} seconds")
 
     return fc_matrices_dict
 
@@ -292,9 +327,11 @@ def compute_plv_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=Tr
     
     return plv_matrices
 
+# %% MI computing
+from tqdm import tqdm  # 用于进度条显示
 def compute_mi_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=True, visualization=True):
     """
-    Compute Mutual Information (MI) matrices for EEG data using a sliding window approach.
+    Compute Mutual Information (MI) matrices for EEG data using a sliding window approach (optimized with parallelism).
 
     Parameters:
         eeg_data (numpy.ndarray): EEG data with shape (channels, time_samples).
@@ -307,39 +344,69 @@ def compute_mi_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=Tru
     Returns:
         list of numpy.ndarray: List of MI matrices for each window.
     """
+    if verbose:
+        print("Starting Mutual Information computation...")
+    
     step = int(samplingrate * window * (1 - overlap))  # Step size for moving window
     segment_length = int(samplingrate * window)
 
+    if verbose:
+        print("Segmenting EEG data...")
     # Split EEG data into overlapping windows
     split_segments = [
-        eeg_data[:, i:i + segment_length] 
+        eeg_data[:, i:i + segment_length]
         for i in range(0, eeg_data.shape[1] - segment_length + 1, step)
     ]
 
-    mi_matrices = []
-    for idx, segment in enumerate(split_segments):
-        if segment.shape[1] < segment_length:
-            continue  # Skip incomplete segments
-        
+    num_windows = len(split_segments)
+    if verbose:
+        print(f"Total segments: {num_windows}")
+
+    def compute_mi_matrix(segment):
+        """ Compute MI matrix for a single segment (Parallelizable). """
         num_channels = segment.shape[0]
         mi_matrix = np.zeros((num_channels, num_channels))
 
-        # Compute MI matrix
+        def compute_mi(x, y):
+            """ Fast mutual information computation using histogram method. """
+            hist_2d, _, _ = np.histogram2d(x, y, bins=5)
+            pxy = hist_2d / np.sum(hist_2d)
+            px = np.sum(pxy, axis=1)
+            py = np.sum(pxy, axis=0)
+            px_py = np.outer(px, py)
+            nonzero = pxy > 0  # Avoid log(0)
+            return np.sum(pxy[nonzero] * np.log(pxy[nonzero] / px_py[nonzero]))
+        
+        # Parallel computation of MI matrix (only upper triangle)
+        mi_values = joblib.Parallel(n_jobs=-1)(
+            joblib.delayed(compute_mi)(segment[ch1], segment[ch2])
+            for ch1 in range(num_channels) for ch2 in range(ch1 + 1, num_channels)
+        )
+
+        # Fill the matrix symmetrically
+        idx = 0
         for ch1 in range(num_channels):
-            for ch2 in range(num_channels):
-                if ch1 == ch2:
-                    mi_matrix[ch1, ch2] = 1  # Self-MI is maximal (normalized to 1)
-                else:
-                    mi_matrix[ch1, ch2] = mutual_info_regression(
-                        segment[ch1, :].reshape(-1, 1), 
-                        segment[ch2, :], 
-                        discrete_features=False
-                    )[0]
+            for ch2 in range(ch1 + 1, num_channels):
+                mi_matrix[ch1, ch2] = mi_matrix[ch2, ch1] = mi_values[idx]
+                idx += 1
 
-        mi_matrices.append(mi_matrix)
+        np.fill_diagonal(mi_matrix, 1)  # Self-MI is 1
+        return mi_matrix
 
-        if verbose:
-            print(f"Computed MI matrix {idx + 1}/{len(split_segments)}")
+    if verbose:
+        print("Computing MI matrices...")
+
+    # Compute MI matrices in parallel with progress tracking
+    # mi_matrices = joblib.Parallel(n_jobs=8, verbose=10)(
+    #     joblib.delayed(compute_mi_matrix)(segment) for segment in split_segments
+    # )
+    
+    mi_matrices = []
+    for segment in tqdm(split_segments, desc="Processing segments", disable=not verbose):
+        mi_matrices.append(compute_mi_matrix(segment))
+    
+    if verbose:
+        print(f"Computed {len(mi_matrices)} MI matrices.")
 
     # Optional visualization
     if visualization and mi_matrices:
@@ -478,6 +545,6 @@ if __name__ == "__main__":
     # distance_matrix = compute_distance_matrix()
     # utils.draw_projection(distance_matrix)
     
-    fc_pcc_matrices = fc_matrices_circle('SEED', feature='pcc', save=True, subject_range=range(1, 2), experiment_range=range(1, 4))
-    fc_plv_matrices = fc_matrices_circle('SEED', feature='plv', save=True, subject_range=range(1, 2), experiment_range=range(1, 4))
-    fc_mi_matrices = fc_matrices_circle('SEED', feature='mi', save=True, subject_range=range(1, 2), experiment_range=range(1, 4))
+    # fc_pcc_matrices = fc_matrices_circle('SEED', feature='pcc', save=True, subject_range=range(1, 16), experiment_range=range(1, 4))
+    # fc_plv_matrices = fc_matrices_circle('SEED', feature='plv', save=True, subject_range=range(1, 16), experiment_range=range(1, 4))
+    fc_mi_matrices = fc_matrices_circle('SEED', feature='mi', save=True, subject_range=range(4, 5), experiment_range=range(1, 4))
