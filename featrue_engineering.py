@@ -203,7 +203,9 @@ def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experi
             if save:
                 path_current = os.getcwd()
                 path_parent = os.path.dirname(path_current)
-                path_folder = os.path.join(path_parent, 'data', 'SEED', 'functional connectivity', f'{feature}_pkl')
+                path_parent_parent = os.path.dirname(path_parent)
+                
+                path_folder = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'functional connectivity', f'{feature}_pkl')
 
                 # 确保目标文件夹存在
                 os.makedirs(path_folder, exist_ok=True)
@@ -550,4 +552,4 @@ if __name__ == "__main__":
     fc_mi_matrices = fc_matrices_circle('SEED', feature='mi', save=True, subject_range=range(10, 11), experiment_range=range(1, 4))
     
     # %% End program actions
-    utils.end_program_actions(play_sound=True, shutdown=False, countdown_seconds=30)
+    utils.end_program_actions(play_sound=True, shutdown=False, countdown_seconds=120)

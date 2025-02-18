@@ -156,7 +156,8 @@ def get_distribution(mapping_method='auto'):
     # define path
     path_current = os.getcwd()
     path_parent = os.path.dirname(path_current)
-    path_distribution = os.path.join(path_parent, 'data', 'SEED', 'electrode distribution')
+    path_parent_parent = os.path.dirname(path_parent)
+    path_distribution = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'electrode distribution')
         
     # read distribution txt
     if mapping_method == 'auto':
@@ -178,7 +179,9 @@ def get_distribution(mapping_method='auto'):
 def load_seed(subject, experiment, band='full'):
     path_current = os.getcwd()
     path_parent = os.path.dirname(path_current)
-    path_1 = os.path.join(path_parent, 'data', 'SEED', 'original eeg')
+    path_parent_parent = os.path.dirname(path_parent)
+    
+    path_1 = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'original eeg')
     path_2 = os.path.join(path_1, 'Preprocessed_EEG')
     path_3 = os.path.join(path_1, 'Filtered_EEG')
     
@@ -199,7 +202,9 @@ def load_seed(subject, experiment, band='full'):
 def load_seed_filtered(subject, experiment, band='joint'):
     path_current = os.getcwd()
     path_parent = os.path.dirname(path_current)
-    folder = os.path.join(path_parent, 'data', 'SEED', 'original eeg', 'Filtered_EEG')
+    path_parent_parent = os.path.dirname(path_parent)
+    
+    folder = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'original eeg', 'Filtered_EEG')
     
     identifier = f'sub{experiment}ex{experiment}'
     
@@ -209,7 +214,9 @@ def load_seed_filtered(subject, experiment, band='joint'):
 def load_cms_seed(experiment, feature='PCC', band='joint', imshow=True):
     path_current = os.getcwd()
     path_parent = os.path.dirname(path_current)
-    path_data = os.path.join(path_parent, 'data', 'SEED', 'functional connectivity', feature, f"{experiment}.mat")
+    path_parent_parent = os.path.dirname(path_parent)
+    
+    path_data = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'functional connectivity', feature, f"{experiment}.mat")
     cms = read_mat(path_data)
     
     cms_alpha = cms['alpha']
@@ -229,7 +236,9 @@ def load_cms_seed(experiment, feature='PCC', band='joint', imshow=True):
 def read_labels_seed():
     path_current = os.getcwd()
     path_parent = os.path.dirname(path_current)
-    path_labels = os.path.join(path_parent, 'data', 'SEED', 'labels', 'labels.txt')
+    path_parent_parent = os.path.dirname(path_parent)
+    
+    path_labels = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'labels', 'labels.txt')
     return pd.read_csv(path_labels, sep='\t', header=None).to_numpy().flatten()
 
 # %% DREAMER Specific Functions
@@ -237,7 +246,9 @@ def read_labels_seed():
 def load_dreamer():
     path_current = os.getcwd()
     path_parent = os.path.dirname(path_current)
-    path_data = os.path.join(path_parent, 'data', 'DREAMER', 'DREAMER.mat')
+    path_parent_parent = os.path.dirname(path_parent)
+    
+    path_data = os.path.join(path_parent_parent, 'Research_Data', 'DREAMER', 'DREAMER.mat')
     dreamer = read_mat(path_data)
     eeg_dic = [np.vstack(trial["EEG"]["stimuli"]) for trial in dreamer["DREAMER"]["Data"]]
     return dreamer, eeg_dic, dreamer["DREAMER"]["EEG_Electrodes"]
@@ -245,7 +256,9 @@ def load_dreamer():
 def load_dreamer_filtered(experiment, band='joint'):
     path_current = os.getcwd()
     path_parent = os.path.dirname(path_current)
-    folder = os.path.join(path_parent, 'data', 'DREAMER', 'Filtered_EEG')
+    path_parent_parent = os.path.dirname(path_parent)
+    
+    folder = os.path.join(path_parent_parent, 'Research_Data', 'DREAMER', 'Filtered_EEG')
     
     identifier = f'sub{experiment}'
     
@@ -256,12 +269,13 @@ def load_cms_dreamer(experiment, feature='PCC', band='joint', imshow=True):
     # 获取当前路径及父路径
     path_current = os.getcwd()
     path_parent = os.path.dirname(path_current)
+    path_parent_parent = os.path.dirname(path_parent)
     
     # 根据方法选择对应文件夹
     if feature == 'PCC':
-        path_folder = os.path.join(path_parent, 'data', 'DREAMER', 'functional connectivity', 'PCC')
+        path_folder = os.path.join(path_parent_parent, 'Research_Data', 'DREAMER', 'functional connectivity', 'PCC')
     elif feature == 'PLV':
-        path_folder = os.path.join(path_parent, 'data', 'DREAMER', 'functional connectivity', 'PLV')
+        path_folder = os.path.join(path_parent_parent, 'Research_Data', 'DREAMER', 'functional connectivity', 'PLV')
     else:
         raise ValueError(f"Unsupported feature: {feature}")
     
@@ -301,7 +315,9 @@ def load_cms_dreamer(experiment, feature='PCC', band='joint', imshow=True):
 def read_labels_dreamer():
     path_current = os.getcwd()
     path_parent = os.path.dirname(path_current)
-    path_labels = os.path.join(path_parent, 'data', 'DREAMER', 'labels', 'labels.txt')
+    path_parent_parent = os.path.dirname(path_parent)
+    
+    path_labels = os.path.join(path_parent_parent, 'Research_Data', 'DREAMER', 'labels', 'labels.txt')
     df = pd.read_csv(path_labels, sep=r'\s+', engine='python')
     return {col: df[col].to_numpy() for col in df.columns}
 
