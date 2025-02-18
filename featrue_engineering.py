@@ -547,4 +547,7 @@ if __name__ == "__main__":
     
     # fc_pcc_matrices = fc_matrices_circle('SEED', feature='pcc', save=True, subject_range=range(1, 16), experiment_range=range(1, 4))
     # fc_plv_matrices = fc_matrices_circle('SEED', feature='plv', save=True, subject_range=range(1, 16), experiment_range=range(1, 4))
-    fc_mi_matrices = fc_matrices_circle('SEED', feature='mi', save=True, subject_range=range(4, 5), experiment_range=range(1, 4))
+    fc_mi_matrices = fc_matrices_circle('SEED', feature='mi', save=True, subject_range=range(10, 11), experiment_range=range(1, 4))
+    
+    # %% End program actions
+    utils.end_program_actions(play_sound=True, shutdown=False, countdown_seconds=30)
