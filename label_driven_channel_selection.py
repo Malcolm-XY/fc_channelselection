@@ -128,5 +128,6 @@ eeg_samples = utils.load_dataset('SEED', subject=1, experiment=1)
 
 # upsamping
 labels_upsampled = upsample(labels)
+eeg_samples = eeg_samples[:,:len(labels_upsampled)]
 
 mis, mis_normalized = compute_mis(eeg_samples, labels_upsampled)
