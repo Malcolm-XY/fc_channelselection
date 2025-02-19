@@ -7,6 +7,7 @@ Created on Sun Feb 16 23:43:14 2025
 
 import utils
 import numpy as np
+import pandas as pd
 import scipy.signal
 
 def compute_mi(x, y):
@@ -25,42 +26,56 @@ def compute_mis(xs, y, verbose=True):
         mi = compute_mi(x, y)
         mis.append(mi)
     
-    mis = np.array(mis)
-    mis = mis.reshape(1, -1)
+    mis = np.array(mis,  dtype=float)
     normalized_mis = min_max_normalize(mis)
-    
+
     if verbose:
         distribution = utils.get_distribution()
         electrodes = distribution['channel']
-
-        plot_heatmap(normalized_mis, electrodes)
         
+        plot_heatmap(mis, electrodes)        
+        
+        mis = np.vstack([electrodes, mis])
+        mis = mis.T
+        
+        normalized_mis = np.vstack([electrodes, normalized_mis])
+        normalized_mis = normalized_mis.T
+        
+        return mis, normalized_mis
+    
     return mis, normalized_mis
     
-
 def min_max_normalize(arr):
     return (arr - np.min(arr)) / (np.max(arr) - np.min(arr))
 
 import seaborn as sns
 import matplotlib.pyplot as plt
-def plot_heatmap(data, xticklabels=None):
+def plot_heatmap(data, yticklabels=None):
     """
-    Plots a heatmap for a 1xN array.
+    Plots a heatmap for an Nx1 array (vertical orientation).
 
     Parameters:
-        data (numpy.ndarray): 1xN array for visualization.
-        xticklabels (list, optional): Labels for the x-axis.
+        data (numpy.ndarray): Nx1 array for visualization.
+        yticklabels (list, optional): Labels for the y-axis. If None, indices will be used.
     """
-    plt.figure(figsize=(10, 2))
+    if yticklabels is None:
+        yticklabels = list(range(data.shape[0]))  # Automatically generate indices as labels
+    
+    if len(data.shape) == 1:
+        data = np.reshape(data, (-1, 1))
+    
+    data = np.array(data, dtype=float)
+    
+    plt.figure(figsize=(2, 10))
     sns.heatmap(
         data, 
-        cmap='Blues',  # 单色热图
-        annot=False,  # 不显示具体数值
+        cmap='Blues',
+        annot=False,
         linewidths=0.5, 
-        xticklabels=xticklabels, 
-        yticklabels=False
+        xticklabels=False, 
+        yticklabels=yticklabels
     )
-    plt.title("Heatmap of 1xN Array")
+    plt.title("Vertical Heatmap of Nx1 Array")
     plt.show()
 
 def downsample_mean(data, factor=200):
@@ -78,56 +93,56 @@ def upsample(data, factor=200):
     data_upsampled = scipy.signal.resample(data, new_length)
     return data_upsampled
     
-# %% Downsampling
+
 # labels = utils.read_labels()
 # eeg_samples = utils.load_dataset('SEED', subject=1, experiment=1)
 
-# # down sampling
+# # Downsampling
 # eeg_samples_downsampled = downsample_mean(eeg_samples, factor=200)
+# mis_downsampling, mis_normalized_downsampling = compute_mis(eeg_samples_downsampled, labels)
 
-# mis = []
-# for eeg in eeg_samples_downsampled:
-#     mi = compute_mi(eeg, labels)
-#     mis.append(mi)
+# labels = utils.read_labels()
+# eeg_samples = utils.load_dataset('SEED', subject=1, experiment=1)
 
-# mis = np.array(mis)
-# mis = mis.reshape(1, -1)
+# # Upsampling
+# labels_upsampled = upsample(labels, factor=200)
+# eeg_samples = eeg_samples[:, :len(labels_upsampled)]
 
-# normalized_mi = min_max_normalize(mis)
+# mis_upsampled, mis_normalized_upsampled = compute_mis(eeg_samples, labels_upsampled)
 
-# distribution = utils.get_distribution()
-# electrodes = distribution['channel']
 
-# plot_heatmap(normalized_mi, electrodes)
-
-# %% Upsampling
-labels = utils.read_labels()
-eeg_samples = utils.load_dataset('SEED', subject=1, experiment=1)
-
-# upsamping
-labels_upsampled = upsample(labels)
-
-mis = []
-for eeg in eeg_samples:
-    mi = compute_mi(eeg, labels_upsampled)
-    mis.append(mi)
-
-mis = np.array(mis)
-mis = mis.reshape(1, -1)
-
-normalized_mis = min_max_normalize(mis)
-
-distribution = utils.get_distribution()
-electrodes = distribution['channel']
-
-plot_heatmap(normalized_mis, electrodes)
-
-# %% Upsampling
-labels = utils.read_labels()
-eeg_samples = utils.load_dataset('SEED', subject=1, experiment=1)
-
-# upsamping
-labels_upsampled = upsample(labels)
-eeg_samples = eeg_samples[:,:len(labels_upsampled)]
-
-mis, mis_normalized = compute_mis(eeg_samples, labels_upsampled)
+if __name__ == "__main__":
+    labels = utils.read_labels('SEED')
+    # labels upsampling
+    labels_upsampled = upsample(labels, 200)
+    
+    mis, mis_normalized = [], []
+    subject_range, experiment_range = range(1,2), range(1,4)
+    for subject in subject_range:
+        for experiment in experiment_range:
+            eeg_samples = utils.load_dataset('SEED', subject=subject, experiment=experiment)
+            eeg_samples = eeg_samples[:, :len(labels_upsampled)]
+            
+            mis_temp, mis_sampled_temp = compute_mis(eeg_samples, labels_upsampled)
+            
+            mis.append(mis_temp)
+            mis_normalized.append(mis_normalized)
+    
+    mis = np.array(mis)
+    mis_flt = mis[:,:,1]
+    
+    mis_mean = np.mean(mis_flt, 0)
+    
+    distribution = utils.get_distribution()
+    electrodes = distribution['channel']
+    plot_heatmap(mis_mean, electrodes)
+    plot_heatmap(np.log(mis_mean), electrodes)
+    
+    
+    
+    # electrodes = np.reshape(electrodes, (-1,1))
+    # arr = pd.DataFrame([mis_mean, electrodes])
+    
+    # # get ascending indices
+    # ascending_indices = np.argsort(mis_mean)
+    
