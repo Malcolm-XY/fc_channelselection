@@ -112,10 +112,11 @@ def upsample(data, factor=200):
 
 
 if __name__ == "__main__":
+    # labels upsampling    
     labels = utils.read_labels('SEED')
-    # labels upsampling
     labels_upsampled = upsample(labels, 200)
     
+    # compute mis_mean
     mis, mis_normalized = [], []
     subject_range, experiment_range = range(1,2), range(1,4)
     for subject in subject_range:
@@ -131,18 +132,17 @@ if __name__ == "__main__":
     mis = np.array(mis)
     mis_flt = mis[:,:,1]
     
-    mis_mean = np.mean(mis_flt, 0)
+    mis_mean = np.array(np.mean(mis_flt, axis=0), dtype=float)
     
+    # arrangement
     distribution = utils.get_distribution()
     electrodes = distribution['channel']
+    mis_mean_ = pd.DataFrame({'electrodes':electrodes, 'mi_mean':mis_mean})
+    
+    # plot heatmap
     plot_heatmap(mis_mean, electrodes)
     plot_heatmap(np.log(mis_mean), electrodes)
     
-    
-    
-    # electrodes = np.reshape(electrodes, (-1,1))
-    # arr = pd.DataFrame([mis_mean, electrodes])
-    
-    # # get ascending indices
-    # ascending_indices = np.argsort(mis_mean)
-    
+    # get ascending indices
+    mis_mean__ = mis_mean_.sort_values('mi_mean', ascending=False)
+    plot_heatmap(mis_mean__['mi_mean'], electrodes)
