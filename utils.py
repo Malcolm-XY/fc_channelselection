@@ -13,6 +13,7 @@ import pandas as pd
 
 import scipy.io
 import scipy.ndimage
+import seaborn as sns
 import matplotlib.pyplot as plt
 
 import mne
@@ -128,6 +129,34 @@ def read_filtered_eegdata(folder, identifier, freq_band='joint', object_type='pa
 
     except FileNotFoundError:
         raise FileNotFoundError(f"File not found for '{identifier}' and frequency band '{freq_band}'. Check the path and file existence.")
+
+def plot_heatmap_1d(data, yticklabels=None):
+    """
+    Plots a heatmap for an Nx1 array (vertical orientation).
+
+    Parameters:
+        data (numpy.ndarray): Nx1 array for visualization.
+        yticklabels (list, optional): Labels for the y-axis. If None, indices will be used.
+    """
+    if yticklabels is None:
+        yticklabels = list(range(data.shape[0]))  # Automatically generate indices as labels
+    
+    if len(data.shape) == 1:
+        data = np.reshape(data, (-1, 1))
+    
+    data = np.array(data, dtype=float)
+    
+    plt.figure(figsize=(2, 10))
+    sns.heatmap(
+        data, 
+        cmap='Blues',
+        annot=False,
+        linewidths=0.5, 
+        xticklabels=False, 
+        yticklabels=yticklabels
+    )
+    plt.title("Vertical Heatmap of Nx1 Array")
+    plt.show()
 
 def draw_projection(sample_projection):
     """
