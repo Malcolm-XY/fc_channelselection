@@ -8,8 +8,10 @@ Created on Tue Jan 14 23:07:14 2025
 import os
 import h5py
 import numpy as np
+import pandas as pd
 
-from utils import load_cmdata2d
+import utils
+from utils import load_cms_seed
 from utils import draw_projection
 
 def load_global_averages(file_path='Distribution/fc_global_averages.h5'):
@@ -47,9 +49,9 @@ def get_averaged_fcnetwork(feature, subjects=range(1,16), experiments=range(1,4)
             print(f'sub: {subject} ex: {experiment}')
             try:
                 # 加载数据
-                cmdata_alpha = load_cmdata2d(feature, 'alpha', f'sub{subject}ex{experiment}')
-                cmdata_beta = load_cmdata2d(feature, 'beta', f'sub{subject}ex{experiment}')
-                cmdata_gamma = load_cmdata2d(feature, 'gamma', f'sub{subject}ex{experiment}')
+                cmdata_alpha = load_cms_seed(feature, f'sub{subject}ex{experiment}')
+                cmdata_beta = load_cms_seed(feature, 'beta', f'sub{subject}ex{experiment}')
+                cmdata_gamma = load_cms_seed(feature, 'gamma', f'sub{subject}ex{experiment}')
                 
                 # 计算平均值
                 cmdata_alpha_averaged = np.mean(cmdata_alpha, axis=0)
@@ -152,5 +154,55 @@ def compute_corr_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=T
     return corr_matrices
 
 if __name__ == '__main__':
-    get_averaged_fcnetwork('PCC', save=True)
+    # get_averaged_fcnetwork('PCC', save=True)
     # get_averaged_fcnetwork('PLV', save=True)
+    
+    # pcc
+    cmdata_alpha = load_cms_seed(feature='pcc', experiment='sub1ex1', band='alpha')
+    cmdata_beta = load_cms_seed(feature='pcc', experiment='sub1ex1', band='beta')
+    cmdata_gamma = load_cms_seed(feature='pcc', experiment='sub1ex1', band='gamma')
+    
+    alpha = cmdata_alpha.mean(axis=(0, 1))
+    beta = cmdata_beta.mean(axis=(0, 1))
+    gamma = cmdata_gamma.mean(axis=(0, 1))
+    
+    joint = alpha+beta+gamma
+    
+    # get electrodes
+    distribution = utils.get_distribution()
+    electrodes = distribution['channel']
+    
+    # arrange
+    joint_ = pd.DataFrame({'electrodes':electrodes, 'pcc_mean': joint})
+    
+    # plot heatmap
+    utils.plot_heatmap_1d(joint, electrodes)
+    
+    # get ascending indices
+    joint_resorted = joint_.sort_values('pcc_mean', ascending=False)
+    utils.plot_heatmap_1d(joint_resorted['pcc_mean'], joint_resorted['electrodes'])
+    
+    # %% plv
+    cmdata_alpha = load_cms_seed(feature='plv', experiment='sub1ex1', band='alpha')
+    cmdata_beta = load_cms_seed(feature='plv', experiment='sub1ex1', band='beta')
+    cmdata_gamma = load_cms_seed(feature='plv', experiment='sub1ex1', band='gamma')
+    
+    alpha = cmdata_alpha.mean(axis=(0, 1))
+    beta = cmdata_beta.mean(axis=(0, 1))
+    gamma = cmdata_gamma.mean(axis=(0, 1))
+    
+    joint = alpha+beta+gamma
+    
+    # get electrodes
+    distribution = utils.get_distribution()
+    electrodes = distribution['channel']
+    
+    # arrange
+    joint_ = pd.DataFrame({'electrodes':electrodes, 'pcc_mean': joint})
+    
+    # plot heatmap
+    utils.plot_heatmap_1d(joint, electrodes)
+    
+    # get ascending indices
+    joint_resorted = joint_.sort_values('pcc_mean', ascending=False)
+    utils.plot_heatmap_1d(joint_resorted['pcc_mean'], joint_resorted['electrodes'])

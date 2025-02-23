@@ -89,24 +89,6 @@ def upsample(data, factor=200):
     data_upsampled = scipy.signal.resample(data, new_length)
     return data_upsampled
     
-
-# labels = utils.read_labels()
-# eeg_samples = utils.load_dataset('SEED', subject=1, experiment=1)
-
-# # Downsampling
-# eeg_samples_downsampled = downsample_mean(eeg_samples, factor=200)
-# mis_downsampling, mis_normalized_downsampling = compute_mis(eeg_samples_downsampled, labels)
-
-# labels = utils.read_labels()
-# eeg_samples = utils.load_dataset('SEED', subject=1, experiment=1)
-
-# # Upsampling
-# labels_upsampled = upsample(labels, factor=200)
-# eeg_samples = eeg_samples[:, :len(labels_upsampled)]
-
-# mis_upsampled, mis_normalized_upsampled = compute_mis(eeg_samples, labels_upsampled)
-
-
 def Compute_MIs_Mean(subject_range=range(1,2), experiment_range=range(1,2), 
                      dataset='SEED', align_method='upsampling', verbose=False):
     # labels upsampling    
@@ -157,7 +139,7 @@ if __name__ == "__main__":
     
     # compute mis_mean
     mis, mis_normalized = [], []
-    subject_range, experiment_range = range(1,2), range(1,4)
+    subject_range, experiment_range = range(1,16), range(1,4)
     for subject in subject_range:
         for experiment in experiment_range:
             eeg_samples = utils.load_dataset('SEED', subject=subject, experiment=experiment)
@@ -178,4 +160,4 @@ if __name__ == "__main__":
     
     # get ascending indices
     mis_mean_resorted = mis_mean_.sort_values('mi_mean', ascending=False)
-    utils.plot_heatmap_1d(mis_mean_resorted['mi_mean'], mis_mean_resorted['electrodes'])
+    utils.plot_heatmap_1d(np.log(mis_mean_resorted['mi_mean']), mis_mean_resorted['electrodes'])
