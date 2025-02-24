@@ -30,7 +30,6 @@ def read_functional_connectivity_pkl(identifier, feature, method='pkl'):
             path_data = os.path.join()
             data = read_pkl()
     
-
 # %% Example Usage
 if __name__ == '__main__':
     path_current = os.getcwd()
