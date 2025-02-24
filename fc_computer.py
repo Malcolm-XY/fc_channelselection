@@ -156,24 +156,44 @@ def compute_corr_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=T
 if __name__ == '__main__':
     # get_averaged_fcnetwork('PCC', save=True)
     # get_averaged_fcnetwork('PLV', save=True)
+
     
-    # pcc
-    cmdata_alpha = load_cms_seed(feature='pcc', experiment='sub1ex1', band='alpha')
-    cmdata_beta = load_cms_seed(feature='pcc', experiment='sub1ex1', band='beta')
-    cmdata_gamma = load_cms_seed(feature='pcc', experiment='sub1ex1', band='gamma')
+    # %% pcc    
+    # 初始化累加变量
+    joint_sum = 0
+    count = 0
     
-    alpha = cmdata_alpha.mean(axis=(0, 1))
-    beta = cmdata_beta.mean(axis=(0, 1))
-    gamma = cmdata_gamma.mean(axis=(0, 1))
+    # 遍历 sub1-sub15 和 ex1-ex4
+    for sub in range(1, 16):
+        for ex in range(1, 3):
+            experiment = f"sub{sub}ex{ex}"
+            
+            # 读取数据
+            cmdata_alpha = load_cms_seed(feature='pcc', experiment=experiment, band='alpha')
+            cmdata_beta = load_cms_seed(feature='pcc', experiment=experiment, band='beta')
+            cmdata_gamma = load_cms_seed(feature='pcc', experiment=experiment, band='gamma')
+            
+            # 计算各频段均值
+            alpha = cmdata_alpha.mean(axis=(0, 1))
+            beta = cmdata_beta.mean(axis=(0, 1))
+            gamma = cmdata_gamma.mean(axis=(0, 1))
+            
+            # 计算 joint
+            joint = alpha + beta + gamma
+            
+            # 累加 joint
+            joint_sum += joint
+            count += 1
     
-    joint = alpha+beta+gamma
+    # 计算 joint 的平均值
+    joint_mean = joint_sum / count
     
     # get electrodes
     distribution = utils.get_distribution()
     electrodes = distribution['channel']
     
     # arrange
-    joint_ = pd.DataFrame({'electrodes':electrodes, 'pcc_mean': joint})
+    joint_ = pd.DataFrame({'electrodes':electrodes, 'pcc_mean': joint_mean})
     
     # plot heatmap
     utils.plot_heatmap_1d(joint, electrodes)
@@ -182,27 +202,46 @@ if __name__ == '__main__':
     joint_resorted = joint_.sort_values('pcc_mean', ascending=False)
     utils.plot_heatmap_1d(joint_resorted['pcc_mean'], joint_resorted['electrodes'])
     
-    # %% plv
-    cmdata_alpha = load_cms_seed(feature='plv', experiment='sub1ex1', band='alpha')
-    cmdata_beta = load_cms_seed(feature='plv', experiment='sub1ex1', band='beta')
-    cmdata_gamma = load_cms_seed(feature='plv', experiment='sub1ex1', band='gamma')
+    # # %% plv
+    # # 初始化累加变量
+    # joint_sum = 0
+    # count = 0
     
-    alpha = cmdata_alpha.mean(axis=(0, 1))
-    beta = cmdata_beta.mean(axis=(0, 1))
-    gamma = cmdata_gamma.mean(axis=(0, 1))
+    # # 遍历 sub1-sub15 和 ex1-ex4
+    # for sub in range(1, 16):
+    #     for ex in range(1, 3):
+    #         experiment = f"sub{sub}ex{ex}"
+            
+    #         # 读取数据
+    #         cmdata_alpha = load_cms_seed(feature='plv', experiment=experiment, band='alpha')
+    #         cmdata_beta = load_cms_seed(feature='plv', experiment=experiment, band='beta')
+    #         cmdata_gamma = load_cms_seed(feature='plv', experiment=experiment, band='gamma')
+            
+    #         # 计算各频段均值
+    #         alpha = cmdata_alpha.mean(axis=(0, 1))
+    #         beta = cmdata_beta.mean(axis=(0, 1))
+    #         gamma = cmdata_gamma.mean(axis=(0, 1))
+            
+    #         # 计算 joint
+    #         joint = alpha + beta + gamma
+            
+    #         # 累加 joint
+    #         joint_sum += joint
+    #         count += 1
     
-    joint = alpha+beta+gamma
+    # # 计算 joint 的平均值
+    # joint_mean = joint_sum / count
     
-    # get electrodes
-    distribution = utils.get_distribution()
-    electrodes = distribution['channel']
+    # # get electrodes
+    # distribution = utils.get_distribution()
+    # electrodes = distribution['channel']
     
-    # arrange
-    joint_ = pd.DataFrame({'electrodes':electrodes, 'pcc_mean': joint})
+    # # arrange
+    # joint_ = pd.DataFrame({'electrodes':electrodes, 'plv_mean': joint_mean})
     
-    # plot heatmap
-    utils.plot_heatmap_1d(joint, electrodes)
+    # # plot heatmap
+    # utils.plot_heatmap_1d(joint, electrodes)
     
-    # get ascending indices
-    joint_resorted = joint_.sort_values('pcc_mean', ascending=False)
-    utils.plot_heatmap_1d(joint_resorted['pcc_mean'], joint_resorted['electrodes'])
+    # # get ascending indices
+    # joint_resorted = joint_.sort_values('plv_mean', ascending=False)
+    # utils.plot_heatmap_1d(joint_resorted['plv_mean'], joint_resorted['electrodes'])
