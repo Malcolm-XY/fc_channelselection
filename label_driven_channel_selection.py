@@ -150,7 +150,7 @@ if __name__ == "__main__":
             mis.append(mis_temp)
             mis_normalized.append(mis_normalized)
     
-    # calculate mean value
+    # arrange mis_mean
     mis_mean = np.array(np.array(mis)[:,:,1].mean(axis=0), dtype=float)
     mis_mean_ = pd.DataFrame({'electrodes':electrodes, 'mi_mean':mis_mean})
     

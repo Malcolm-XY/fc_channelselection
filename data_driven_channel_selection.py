@@ -7,7 +7,10 @@ Created on Mon Feb 24 14:11:18 2025
 
 import os
 import pickle
+import numpy as np
 import pandas as pd
+
+import utils
 
 def read_pkl(path_file, method='pd'):
     if method == 'pd':
@@ -19,25 +22,59 @@ def read_pkl(path_file, method='pd'):
         
     return data
 
-def read_functional_connectivity_pkl(identifier, feature, method='pkl'):
+def read_functional_connectivity(identifier, feature, method='pkl', dtype='np'):
     path_current = os.getcwd()
     path_parent = os.path.dirname(path_current)
     path_parent_parent = os.path.dirname(path_parent)
     path_fc_features = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'functional connectivity')
     
-    if method == 'pkl':
-        if feature == 'pcc':
-            path_data = os.path.join()
-            data = read_pkl()
+    if method.lower() == 'pkl':
+        path_data = os.path.join(path_fc_features, f'{feature.lower()}_pkl', f'{identifier.lower()}.pkl')
+        data = read_pkl(path_data)
     
+    if dtype.lower() == 'np':
+        data = np.array(data)
+    
+    return data
+
+def compute_mean_functional_connectivity(feature, subject_range=range(1,16), experiment_range=range(1,4), band='joint'):
+    data = []
+    for subject in subject_range:
+        for experiment in experiment_range:
+            if band.lower() == 'joint':
+                alpha = read_functional_connectivity(identifier=f'sub{subject}ex{experiment}_alpha', feature=feature)
+                beta = read_functional_connectivity(identifier=f'sub{subject}ex{experiment}_beta', feature=feature)
+                gamma = read_functional_connectivity(identifier=f'sub{subject}ex{experiment}_gamma', feature=feature)
+                
+                data_temp = (alpha + beta + gamma)/3
+                
+            elif band.lower() in ['alpha', 'beta', 'gamma']:
+                data_temp = read_functional_connectivity(identifier=f'sub{subject}ex{experiment}_{band.lower()}', feature=feature)
+            
+            data.append(data_temp)
+    
+    data = np.array(data)
+    data_mean = data.mean(axis = (0, 1, 2))
+    
+    return data_mean
+
 # %% Example Usage
 if __name__ == '__main__':
-    path_current = os.getcwd()
-    path_parent = os.path.dirname(path_current)
-    path_parent_parent = os.path.dirname(path_parent)
-    path_fc_features = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'functional connectivity')
-    path_mi_features = os.path.join(path_fc_features, 'mi_pkl')
+    # get electrodes
+    distribution = utils.get_distribution()
+    electrodes = distribution['channel']
     
-    example_path = os.path.join(path_mi_features, 'sub1ex1_alpha.pkl')
+    # compute mis_mean
+    mis_mean =compute_mean_functional_connectivity('mi', subject_range=range(1,16), experiment_range=range(1,4))
     
-    data = read_pkl(example_path)
+    # arrange mis_mean
+    mis_mean_ = pd.DataFrame({'electrodes':electrodes, 'mi_mean':mis_mean})
+    
+    # plot heatmap
+    utils.plot_heatmap_1d(mis_mean, electrodes)
+    utils.plot_heatmap_1d(np.log(mis_mean), electrodes)
+    
+    # get ascending indices
+    mis_mean_resorted = mis_mean_.sort_values('mi_mean', ascending=False)
+    utils.plot_heatmap_1d(np.log(mis_mean_resorted['mi_mean']), mis_mean_resorted['electrodes'])
+    
