@@ -175,9 +175,9 @@ def draw_projection(sample_projection):
             plt.show()
 
 def read_labels(dataset='SEED'):
-    if dataset == 'SEED':
+    if dataset.upper() == 'SEED':
         labels = read_labels_seed()
-    elif dataset == 'DREAMER':
+    elif dataset.upper() == 'DREAMER':
         labels = read_labels_dreamer()
     return labels
 
@@ -202,6 +202,16 @@ def get_distribution(mapping_method='auto'):
         distribution = pd.read_csv(path_ch_manual_distr, sep='\t')
     
     return distribution
+
+def get_ranking(ranking='label_driven_mi'):
+    # define path
+    path_current = os.getcwd()
+    
+    path_ranking = os.path.join(path_current, 'Distribution', 'electrodes_ranking.txt')
+    # read txt; electrodes ranking
+    ranking = pd.read_csv(path_ranking, sep='\t')
+    
+    return ranking
 
 # %% SEED Specific Functions
 # original eegl; seed
@@ -259,6 +269,23 @@ def load_cms_seed(experiment, feature='PCC', band='joint', imshow=True):
 
     if imshow:
        draw_projection(np.mean(data, axis=0))
+    
+    return data
+
+def load_cfs_seed(experiment, feature='de_LDS', band='joint'):
+    path_current = os.getcwd()
+    path_parent = os.path.dirname(path_current)
+    path_parent_parent = os.path.dirname(path_parent)
+    
+    path_data = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'channel features', feature, f"{experiment}.mat")
+    
+    cfs = read_mat(path_data)
+    cfs_alpha = cfs[feature][0]
+    cfs_beta = cfs[feature][1]
+    cfs_gamma = cfs[feature][3]
+    
+    if band == 'joint':
+        data = np.stack((cfs_alpha, cfs_beta, cfs_gamma), axis=1)
     
     return data
 
