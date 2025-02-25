@@ -4,14 +4,14 @@ Created on Mon Feb 24 18:32:18 2025
 
 @author: 18307
 """
+import os
+import numpy as np
+import pandas as pd
 
 from sklearn.svm import SVC
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import KFold
 from sklearn.metrics import accuracy_score, recall_score, f1_score
-import numpy as np
-import pandas as pd
-import os
 
 def train_and_evaluate_svm(X_train, Y_train, X_val, Y_val):
     model = SVC(kernel='rbf', C=1, gamma='scale')
