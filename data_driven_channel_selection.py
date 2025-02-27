@@ -65,7 +65,7 @@ if __name__ == '__main__':
     electrodes = distribution['channel']
     
     # compute mis_mean
-    mis_mean =compute_mean_functional_connectivity('mi', subject_range=range(1,16), experiment_range=range(1,4))
+    mis_mean =compute_mean_functional_connectivity('mi', subject_range=range(1,2), experiment_range=range(1,4))
     
     # arrange mis_mean
     mis_mean_ = pd.DataFrame({'electrodes':electrodes, 'mi_mean':mis_mean})
