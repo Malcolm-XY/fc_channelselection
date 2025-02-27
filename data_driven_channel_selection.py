@@ -71,10 +71,10 @@ if __name__ == '__main__':
     mis_mean_ = pd.DataFrame({'electrodes':electrodes, 'mi_mean':mis_mean})
     
     # plot heatmap
-    utils.plot_heatmap_1d(mis_mean, electrodes)
-    utils.plot_heatmap_1d(np.log(mis_mean), electrodes)
+    utils.draw_heatmap_1d(mis_mean, electrodes)
+    utils.draw_heatmap_1d(np.log(mis_mean), electrodes)
     
     # get ascending indices
     mis_mean_resorted = mis_mean_.sort_values('mi_mean', ascending=False)
-    utils.plot_heatmap_1d(np.log(mis_mean_resorted['mi_mean']), mis_mean_resorted['electrodes'])
+    utils.draw_heatmap_1d(np.log(mis_mean_resorted['mi_mean']), mis_mean_resorted['electrodes'])
     
