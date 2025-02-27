@@ -33,11 +33,11 @@ def read_pkl(path_file, method='pd'):
         
     return data
 
-def load_cms_pkl(identifier, feature, method='pkl', dtype='np'):
+def load_cms_pkl(identifier, feature='PCC', dataset='SEED', method='pkl', dtype='np'):
     path_current = os.getcwd()
     path_parent = os.path.dirname(path_current)
     path_parent_parent = os.path.dirname(path_parent)
-    path_fc_features = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'functional connectivity')
+    path_fc_features = os.path.join(path_parent_parent, 'Research_Data', dataset.upper(), 'functional connectivity')
     
     if method.lower() == 'pkl':
         path_data = os.path.join(path_fc_features, f'{feature.lower()}_pkl', f'{identifier.lower()}.pkl')
