@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Feb  4 15:43:46 2025
+Created on Mon Mar  3 02:14:56 2025
 
-@author: usouu
+@author: 18307
 """
 
 import os
@@ -18,9 +18,164 @@ import scipy.ndimage
 
 import mne
 
-# %% For forwarding and quote
-from utils_visualization import draw_heatmap_1d
-from utils_visualization import draw_projection
+# %% Basic File Reading Functions
+def read_txt(path_file):
+    """
+    Reads a text file and returns its content as a Pandas DataFrame.
+    
+    Parameters:
+    - path_file (str): Path to the text file.
+    
+    Returns:
+    - pd.DataFrame: DataFrame containing the parsed text data.
+    """
+    return pd.read_csv(path_file, sep=r'\s+', engine='python')
+
+def read_hdf5(path_file):
+    """
+    Reads an HDF5 file and returns its contents as a dictionary.
+    
+    Parameters:
+    - path_file (str): Path to the HDF5 file.
+    
+    Returns:
+    - dict: Parsed data from the HDF5 file.
+    
+    Raises:
+    - FileNotFoundError: If the file does not exist.
+    - TypeError: If the file is not a valid HDF5 format.
+    """
+    if not os.path.exists(path_file):
+        raise FileNotFoundError(f"File not found: {path_file}")
+
+    try:
+        with h5py.File(path_file, 'r') as f:
+            return {key: simplify_mat_structure(f[key]) for key in f.keys()}
+    except OSError:
+        raise TypeError(f"File '{path_file}' is not in HDF5 format.")
+
+def read_mat(path_file, simplify=True):
+    """
+    Reads a MATLAB .mat file, supporting both HDF5 and older formats.
+    
+    Parameters:
+    - path_file (str): Path to the .mat file.
+    - simplify (bool): Whether to simplify the data structure (default: True).
+    
+    Returns:
+    - dict: Parsed MATLAB file data.
+    
+    Raises:
+    - FileNotFoundError: If the file does not exist.
+    - TypeError: If the file format is invalid.
+    """
+    if not os.path.exists(path_file):
+        raise FileNotFoundError(f"File not found: {path_file}")
+    
+    try:
+        # Attempt to read as HDF5 format
+        with h5py.File(path_file, 'r') as f:
+            return {key: simplify_mat_structure(f[key]) for key in f.keys()} if simplify else f
+    except OSError:
+        try:
+            # Read as non-HDF5 .mat file
+            mat_data = scipy.io.loadmat(path_file, squeeze_me=simplify, struct_as_record=not simplify)
+            return {key: simplify_mat_structure(value) for key, value in mat_data.items() if not key.startswith('_')} if simplify else mat_data
+        except Exception as e:
+            raise TypeError(f"Failed to read '{path_file}': {e}")
+
+def simplify_mat_structure(data):
+    """
+    Recursively processes and simplifies MATLAB data structures.
+    
+    Converts:
+    - HDF5 datasets to NumPy arrays or scalars.
+    - HDF5 groups to Python dictionaries.
+    - MATLAB structs to Python dictionaries.
+    - Cell arrays to Python lists.
+    - NumPy arrays are squeezed to remove unnecessary dimensions.
+    
+    Parameters:
+    - data: Input data (HDF5, MATLAB struct, NumPy array, etc.).
+    
+    Returns:
+    - Simplified Python data structure.
+    """
+    if isinstance(data, h5py.Dataset):
+        return data[()]
+    elif isinstance(data, h5py.Group):
+        return {key: simplify_mat_structure(data[key]) for key in data.keys()}
+    elif isinstance(data, scipy.io.matlab.mat_struct):
+        return {field: simplify_mat_structure(getattr(data, field)) for field in data._fieldnames}
+    elif isinstance(data, np.ndarray):
+        if data.dtype == 'object':
+            return [simplify_mat_structure(item) for item in data]
+        return np.squeeze(data)
+    return data
+
+
+
+# %% read fif
+# %% read original eeg/mat
+# %% read filtered eeg/fif
+def read_filtered_eegdata(folder, identifier, freq_band='joint', object_type='pandas_dataframe'):
+    """
+    Read filtered EEG data for the specified experiment and frequency band.
+
+    Parameters:
+    folder (str): Directory containing the EEG data files.
+    identifier (str): Identifier for the subject/session.
+    freq_band (str): Frequency band to load ("alpha", "beta", "gamma", "delta", "theta", or "joint").
+                     Default is "joint", which loads all bands.
+    object_type (str): Desired output format: 'pandas_dataframe', 'numpy_array', or 'mne'.
+
+    Returns:
+    mne.io.Raw | dict | pandas.DataFrame | numpy.ndarray:
+        - If 'mne', returns the MNE Raw object (or a dictionary of them for 'joint').
+        - If 'pandas_dataframe', returns a DataFrame with EEG data.
+        - If 'numpy_array', returns a NumPy array with EEG data.
+
+    Raises:
+    ValueError: If the specified frequency band is not valid.
+    FileNotFoundError: If the expected file does not exist.
+    """
+
+    try:
+        if freq_band.lower() in ['alpha', 'beta', 'gamma', 'delta', 'theta']:
+            path_file = os.path.join(folder, f'{identifier}_{freq_band.capitalize()}_eeg.fif')
+            filtered_eeg = mne.io.read_raw_fif(path_file, preload=True)
+
+            if object_type == 'pandas_dataframe':
+                return pd.DataFrame(filtered_eeg.get_data(), index=filtered_eeg.ch_names)
+            elif object_type == 'numpy_array':
+                return filtered_eeg.get_data()
+            else:
+                return filtered_eeg
+
+        elif freq_band.lower() == 'joint':
+            filtered_eeg = {}
+            for band in ['alpha', 'beta', 'gamma', 'delta', 'theta']:
+                path_file = os.path.join(folder, f'{identifier}_{band}_eeg.fif')
+                raw_data = mne.io.read_raw_fif(path_file, preload=True)
+
+                if object_type == 'pandas_dataframe':
+                    filtered_eeg[band.lower()] = pd.DataFrame(raw_data.get_data(), index=raw_data.ch_names)
+                elif object_type == 'numpy_array':
+                    filtered_eeg[band.lower()] = raw_data.get_data()
+                else:
+                    filtered_eeg[band.lower()] = raw_data
+
+            return filtered_eeg
+
+        else:
+            raise ValueError(f"Invalid frequency band: {freq_band}. Choose from 'alpha', 'beta', 'gamma', 'delta', 'theta', or 'joint'.")
+
+    except FileNotFoundError:
+        raise FileNotFoundError(f"File not found for '{identifier}' and frequency band '{freq_band}'. Check the path and file existence.")
+
+
+
+
 
 # %% Common Functions
 def read_pkl(path_file, method='pd'):
@@ -103,61 +258,6 @@ def simplify_mat_structure(data):
 
     else:  # 其他类型直接返回
         return data
-
-def read_filtered_eegdata(folder, identifier, freq_band='joint', object_type='pandas_dataframe'):
-    """
-    Read filtered EEG data for the specified experiment and frequency band.
-
-    Parameters:
-    folder (str): Directory containing the EEG data files.
-    identifier (str): Identifier for the subject/session.
-    freq_band (str): Frequency band to load ("alpha", "beta", "gamma", "delta", "theta", or "joint").
-                     Default is "joint", which loads all bands.
-    object_type (str): Desired output format: 'pandas_dataframe', 'numpy_array', or 'mne'.
-
-    Returns:
-    mne.io.Raw | dict | pandas.DataFrame | numpy.ndarray:
-        - If 'mne', returns the MNE Raw object (or a dictionary of them for 'joint').
-        - If 'pandas_dataframe', returns a DataFrame with EEG data.
-        - If 'numpy_array', returns a NumPy array with EEG data.
-
-    Raises:
-    ValueError: If the specified frequency band is not valid.
-    FileNotFoundError: If the expected file does not exist.
-    """
-
-    try:
-        if freq_band.lower() in ['alpha', 'beta', 'gamma', 'delta', 'theta']:
-            path_file = os.path.join(folder, f'{identifier}_{freq_band.capitalize()}_eeg.fif')
-            filtered_eeg = mne.io.read_raw_fif(path_file, preload=True)
-
-            if object_type == 'pandas_dataframe':
-                return pd.DataFrame(filtered_eeg.get_data(), index=filtered_eeg.ch_names)
-            elif object_type == 'numpy_array':
-                return filtered_eeg.get_data()
-            else:
-                return filtered_eeg
-
-        elif freq_band.lower() == 'joint':
-            filtered_eeg = {}
-            for band in ['alpha', 'beta', 'gamma', 'delta', 'theta']:
-                path_file = os.path.join(folder, f'{identifier}_{band}_eeg.fif')
-                raw_data = mne.io.read_raw_fif(path_file, preload=True)
-
-                if object_type == 'pandas_dataframe':
-                    filtered_eeg[band.lower()] = pd.DataFrame(raw_data.get_data(), index=raw_data.ch_names)
-                elif object_type == 'numpy_array':
-                    filtered_eeg[band.lower()] = raw_data.get_data()
-                else:
-                    filtered_eeg[band.lower()] = raw_data
-
-            return filtered_eeg
-
-        else:
-            raise ValueError(f"Invalid frequency band: {freq_band}. Choose from 'alpha', 'beta', 'gamma', 'delta', 'theta', or 'joint'.")
-
-    except FileNotFoundError:
-        raise FileNotFoundError(f"File not found for '{identifier}' and frequency band '{freq_band}'. Check the path and file existence.")
 
 def read_labels(dataset='SEED'):
     if dataset.upper() == 'SEED':
@@ -402,100 +502,3 @@ def load_dataset(dataset='SEED', **kwargs):
         raise ValueError(f"Unknown dataset: {dataset}")
         
 def load_cms(dataset='SEED', **kwargs):
-    if dataset == 'SEED':
-        return load_cms_seed(**kwargs)
-    elif dataset == 'DREAMER':
-        return load_cms_dreamer(**kwargs)
-    else:
-        raise ValueError(f"Unknown dataset: {dataset}")
-
-# %% End Program Actions
-import time
-import threading
-def shutdown_with_countdown(countdown_seconds=30):
-    """
-    Initiates a shutdown countdown, allowing the user to cancel shutdown within the given time.
-
-    Args:
-        countdown_seconds (int): The number of seconds to wait before shutting down.
-    """
-    def cancel_shutdown():
-        nonlocal shutdown_flag
-        user_input = input("\nPress 'c' and Enter to cancel shutdown: ").strip().lower()
-        if user_input == 'c':
-            shutdown_flag = False
-            print("Shutdown cancelled.")
-
-    # Flag to determine whether to proceed with shutdown
-    shutdown_flag = True
-
-    # Start a thread to listen for user input
-    input_thread = threading.Thread(target=cancel_shutdown, daemon=True)
-    input_thread.start()
-
-    # Countdown timer
-    print(f"Shutdown scheduled in {countdown_seconds} seconds. Press 'c' to cancel.")
-    for i in range(countdown_seconds, 0, -1):
-        print(f"Time remaining: {i} seconds", end="\r")
-        time.sleep(1)
-
-    # Check the flag after countdown
-    if shutdown_flag:
-        print("\nShutdown proceeding...")
-        os.system("shutdown /s /t 1")  # Execute shutdown command
-    else:
-        print("\nShutdown aborted.")
-
-def end_program_actions(play_sound=True, shutdown=False, countdown_seconds=120):
-    """
-    Performs actions at the end of the program, such as playing a sound or shutting down the system.
-
-    Args:
-        play_sound (bool): If True, plays a notification sound.
-        shutdown (bool): If True, initiates shutdown with a countdown.
-        countdown_seconds (int): Countdown time for shutdown confirmation.
-    """
-    if play_sound:
-        try:
-            import winsound
-            print("Playing notification sound...")
-            winsound.Beep(1000, 500)  # Frequency: 1000Hz, Duration: 500ms
-        except ImportError:
-            print("winsound module not available. Skipping sound playback.")
-
-    if shutdown:
-        shutdown_with_countdown(countdown_seconds)
-
-# %% Example Usage
-if __name__ == '__main__':
-    # %% SEED
-    # dataset
-    seed_sub_sample, seed_ex_sample, seed_fre_sample1, seed_fre_sample2  = 1, 1, 'alpha', 'joint'
-    seed_sample_1 = load_seed(seed_sub_sample, seed_ex_sample, band=seed_fre_sample1)
-    seed_sample_2 = load_seed(seed_sub_sample, seed_ex_sample, band=seed_fre_sample2)
-    
-    # cfs
-    experiment_sample, feature_sample, freq_sample_1, freq_sample_2 = 'sub1ex1', 'de_LDS', 'alpha', 'joint'
-    seed_cfs_sample_1 = load_cfs_seed(experiment_sample, feature=feature_sample, band=freq_sample_1)
-    seed_cfs_sample_2 = load_cfs_seed(experiment_sample, feature=feature_sample, band=freq_sample_2)
-    
-    # cms
-    experiment_sample, feature_sample, freq_sample_1, freq_sample_2 = 'sub1ex1', 'PCC', 'alpha', 'joint'
-    seed_cms_sample_1 = load_cms(dataset='SEED', experiment=experiment_sample, feature=feature_sample, band=freq_sample_1)
-    seed_cms_sample_2 = load_cms(dataset='SEED', experiment=experiment_sample, feature=feature_sample, band=freq_sample_2)
-    
-    labels_SEED = read_labels_seed()
-    
-    # %% DREAMER
-    # # dataset
-    # dreamer, dreamer_eeg_, dreamer_electrodes = load_dataset(dataset='DREAMER')
-    # dreamer_sub_sample, dreamer_fre_sample_1, dreamer_fre_sample_2 = 1, 'alpha', 'joint'
-    # draemer_sample_1 = load_dreamer_filtered(dreamer_sub_sample, band=dreamer_fre_sample_1)
-    # draemer_sample_2 = load_dreamer_filtered(dreamer_sub_sample, band=dreamer_fre_sample_2)
-    
-    # # cms
-    # experiment_sample_d, feature_sample_d, freq_sample_d1, freq_sample_d2 = 'sub1', 'PCC', 'alpha', 'joint'
-    # dreamer_cms_sample_1 = load_cms(dataset='DREAMER', experiment=experiment_sample_d, feature=feature_sample_d, band=freq_sample_d1)
-    # dreamer_cms_sample_1 = load_cms(dataset='DREAMER', experiment=experiment_sample_d, feature=feature_sample_d, band=freq_sample_d2)
-    
-    # labels_DREAMER = read_labels_dreamer()

@@ -11,17 +11,17 @@ import pandas as pd
 import scipy.signal
 
 # %% Preprocessing
-def downsample_mean(data, factor=200):
+def downsample_mean(data, factor):
     channels, points = data.shape
     truncated_length = points - (points % factor)  # 确保整除
     data_trimmed = data[:, :truncated_length]  # 截断到可整除的长度
     data_downsampled = data_trimmed.reshape(channels, -1, factor).mean(axis=2)  # 每 factor 组取平均值
     return data_downsampled
 
-def downsample_decimate(data, factor=200):
+def downsample_decimate(data, factor):
     return scipy.signal.decimate(data, factor, axis=1, ftype='fir', zero_phase=True)
 
-def upsample(data, factor=200):
+def upsample(data, factor):
     new_length = len(data) * factor
     data_upsampled = scipy.signal.resample(data, new_length)
     return data_upsampled
@@ -65,8 +65,9 @@ def compute_mis(xs, y, electrodes=None, assemble_electrodes=True, verbose=True):
     
 def min_max_normalize(arr):
     return (arr - np.min(arr)) / (np.max(arr) - np.min(arr))
-    
-def Compute_MIs_Mean(subject_range=range(1,2), experiment_range=range(1,2), electrodes=None,
+
+# %% Compute MIs; Specific for SEED
+def Compute_MIs_Mean_SEED(subject_range=range(1,2), experiment_range=range(1,2), electrodes=None,
                      dataset='SEED', align_method='upsampling', verbose=False):
     # labels upsampling    
     labels = utils.read_labels(dataset)
@@ -126,4 +127,4 @@ if __name__ == "__main__":
     
     # compute mis_mean
     subject_range, experiment_range = range(1,2), range(1,4)
-    Compute_MIs_Mean(subject_range, experiment_range, electrodes, align_method='upsampling', verbose=False)
+    Compute_MIs_Mean_SEED(subject_range, experiment_range, electrodes, align_method='upsampling', verbose=False)

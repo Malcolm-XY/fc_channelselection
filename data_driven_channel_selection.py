@@ -30,7 +30,7 @@ def read_functional_connectivity(identifier, feature, method='pkl', dtype='np'):
     
     if method.lower() == 'pkl':
         path_data = os.path.join(path_fc_features, f'{feature.lower()}_pkl', f'{identifier.lower()}.pkl')
-        data = read_pkl(path_data)
+        data = utils.read_pkl(path_data)
     
     if dtype.lower() == 'np':
         data = np.array(data)
@@ -60,21 +60,23 @@ def compute_mean_functional_connectivity(feature, subject_range=range(1,16), exp
 
 # %% Example Usage
 if __name__ == '__main__':
-    # get electrodes
-    distribution = utils.get_distribution()
-    electrodes = distribution['channel']
+    # # get electrodes
+    # distribution = utils.get_distribution()
+    # electrodes = distribution['channel']
     
-    # compute mis_mean
-    mis_mean =compute_mean_functional_connectivity('mi', subject_range=range(1,2), experiment_range=range(1,4))
+    # # compute mis_mean
+    # mis_mean = compute_mean_functional_connectivity('mi', subject_range=range(1,2), experiment_range=range(1,4))
     
-    # arrange mis_mean
-    mis_mean_ = pd.DataFrame({'electrodes':electrodes, 'mi_mean':mis_mean})
+    # # arrange mis_mean
+    # mis_mean_ = pd.DataFrame({'electrodes':electrodes, 'mi_mean':mis_mean})
     
-    # plot heatmap
-    utils.draw_heatmap_1d(mis_mean, electrodes)
-    utils.draw_heatmap_1d(np.log(mis_mean), electrodes)
+    # # plot heatmap
+    # utils.draw_heatmap_1d(mis_mean, electrodes)
+    # utils.draw_heatmap_1d(np.log(mis_mean), electrodes)
     
-    # get ascending indices
-    mis_mean_resorted = mis_mean_.sort_values('mi_mean', ascending=False)
-    utils.draw_heatmap_1d(np.log(mis_mean_resorted['mi_mean']), mis_mean_resorted['electrodes'])
+    # # get ascending indices
+    # mis_mean_resorted = mis_mean_.sort_values('mi_mean', ascending=False)
+    # utils.draw_heatmap_1d(np.log(mis_mean_resorted['mi_mean']), mis_mean_resorted['electrodes'])
     
+    # %% Test
+    data = read_functional_connectivity('sub1ex1_alpha', 'pcc')

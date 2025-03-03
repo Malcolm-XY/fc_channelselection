@@ -8,6 +8,7 @@ Created on Thu Feb 13 23:15:11 2025
 import os
 import time
 import pickle
+import h5py
 import numpy as np
 import pandas as pd
 
@@ -125,7 +126,7 @@ def read_filtered_eegdata_dreamer(identifier, freq_band="Joint"):
 # %% Feature Engineering
 def compute_distance_matrix():
     distribution = utils.get_distribution()
-    electrod_names, x, y, z = distribution['channel'], distribution['x'], distribution['y'], distribution['z']
+    channel_names, x, y, z = distribution['channel'], distribution['x'], distribution['y'], distribution['z']
     
     # 将 x, y, z 坐标堆叠成 (N, 3) 形状的矩阵
     coords = np.vstack((x, y, z)).T  # 形状 (N, 3)
@@ -134,7 +135,7 @@ def compute_distance_matrix():
     diff = coords[:, np.newaxis, :] - coords[np.newaxis, :, :]
     distance_matrix = np.sqrt(np.sum(diff ** 2, axis=-1))
     
-    return distance_matrix
+    return channel_names, distance_matrix
 
 def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experiment_range=range(1, 2), freq_band='joint', save=False, verbose=True):
     """
@@ -184,7 +185,7 @@ def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experi
 
             elif freq_band.lower() == 'joint':
                 fc_matrices_dict[identifier] = {}  # 确保是字典
-                for band in ['alpha', 'beta', 'gamma']:
+                for band in ['delta', 'theta', 'alpha', 'beta', 'gamma']:
                     data = np.array(eeg_data[band])
                     if feature.lower() == 'pcc': 
                         fc_matrices_dict[identifier][band] = compute_corr_matrices(data, samplingrate=200)
@@ -205,20 +206,27 @@ def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experi
                 path_parent = os.path.dirname(path_current)
                 path_parent_parent = os.path.dirname(path_parent)
                 
-                path_folder = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'functional connectivity', f'{feature}_pkl')
-
-                # 确保目标文件夹存在
-                os.makedirs(path_folder, exist_ok=True)
-
-                if freq_band.lower() == 'joint':
-                    for band in ['alpha', 'beta', 'gamma']:
-                        file_path_band_pkl = os.path.join(path_folder, f"{identifier}_{band}.pkl")
-                        with open(file_path_band_pkl, 'wb') as f:
-                            pickle.dump(fc_matrices_dict[identifier][band], f)
-                else:
-                    file_path_pkl = os.path.join(path_folder, f"{identifier}_{freq_band.lower()}.pkl")
-                    with open(file_path_pkl, 'wb') as f:
-                        pickle.dump(fc_matrices_dict[identifier], f)
+                path_folder = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'functional connectivity', f'{feature}_h5')
+                
+                """
+                将不同频段的功能连接矩阵存储为 HDF5 文件。
+            
+                参数：
+                - fc_matrices_dict (dict): 功能连接矩阵数据。
+                - path_folder (str): 存储文件的目标文件夹路径。
+                - identifier (str): 数据标识符（如实验名称）。
+            
+                返回：
+                - None
+                """
+                os.makedirs(path_folder, exist_ok=True)  
+                file_path_h5 = os.path.join(path_folder, f"{identifier}.h5")
+            
+                with h5py.File(file_path_h5, 'w') as f:
+                    for band in ["delta", "theta", "alpha", "beta", "gamma"]:
+                        f.create_dataset(band, data=fc_matrices_dict[identifier][band], compression="gzip")
+            
+                print(f"Data saved to {file_path_h5}")
 
     # **计算总时间 & 平均 experiment 时间**
     total_time = time.time() - start_time
@@ -227,7 +235,7 @@ def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experi
     if verbose:
         print(f"\nTotal time taken: {total_time:.2f} seconds")
         print(f"Average time per experiment: {avg_experiment_time:.2f} seconds")
-
+    
     return fc_matrices_dict
 
 def compute_corr_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=True, visualization=True):
@@ -549,7 +557,7 @@ if __name__ == "__main__":
     
     # fc_pcc_matrices = fc_matrices_circle('SEED', feature='pcc', save=True, subject_range=range(1, 16), experiment_range=range(1, 4))
     # fc_plv_matrices = fc_matrices_circle('SEED', feature='plv', save=True, subject_range=range(1, 16), experiment_range=range(1, 4))
-    fc_mi_matrices = fc_matrices_circle('SEED', feature='mi', save=True, subject_range=range(15, 16), experiment_range=range(1, 4))
-    
+    # fc_mi_matrices = fc_matrices_circle('SEED', feature='mi', save=True, subject_range=range(1, 2), experiment_range=range(1, 4))
+        
     # %% End program actions
     utils.end_program_actions(play_sound=True, shutdown=False, countdown_seconds=120)
