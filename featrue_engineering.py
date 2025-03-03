@@ -18,13 +18,32 @@ from scipy.signal import hilbert
 from scipy.stats import gaussian_kde
 
 import joblib
-import utils
+# import utils
+
+import utils_eeg_loading
+import utils_feature_loading
+import utils_visualization
 
 # %% Filter EEG
 def filter_eeg(eeg, freq=128, verbose=False):
-    info = mne.create_info(ch_names=['Ch' + str(i) for i in range(eeg.shape[0])], sfreq=freq, ch_types='eeg')
-    mneeeg = mne.io.RawArray(eeg, info)
+    """
+    Filter raw EEG data into standard frequency bands using MNE.
+
+    Parameters:
+    eeg (numpy.ndarray): Raw EEG data array with shape (n_channels, n_samples).
+    freq (int): Sampling frequency of the EEG data. Default is 128 Hz.
+    verbose (bool): If True, prints progress messages. Default is False.
+
+    Returns:
+    dict:
+        A dictionary where keys are frequency band names ("Delta", "Theta", "Alpha", "Beta", "Gamma")
+        and values are the corresponding MNE Raw objects filtered to that band.
+    """
+    # Create MNE info structure and Raw object from the EEG array
+    info = mne.create_info(ch_names=[f"Ch{i}" for i in range(eeg.shape[0])], sfreq=freq, ch_types='eeg')
+    mne_eeg = mne.io.RawArray(eeg, info)
     
+    # Define frequency bands
     freq_bands = {
         "Delta": (0.5, 4),
         "Theta": (4, 8),
@@ -34,98 +53,91 @@ def filter_eeg(eeg, freq=128, verbose=False):
     }
     
     band_filtered_eeg = {}
-
+    
+    # Filter EEG data for each frequency band
     for band, (low_freq, high_freq) in freq_bands.items():
-        filtered_eeg = mneeeg.copy().filter(l_freq=low_freq, h_freq=high_freq, method="fir", phase="zero-double")
+        filtered_eeg = mne_eeg.copy().filter(l_freq=low_freq, h_freq=high_freq, method="fir", phase="zero-double")
         band_filtered_eeg[band] = filtered_eeg
         if verbose:
             print(f"{band} band filtered: {low_freq}–{high_freq} Hz")
-
+    
     return band_filtered_eeg
 
-def filter_eeg_and_save_seed(subject, experiment, verbose=True):
-    eeg = utils.load_seed(subject, experiment)
-    
-    path_current = os.getcwd()
-    path_parent = os.path.dirname(path_current)
-    path_folder = os.path.join(path_parent, 'data', 'SEED', 'original eeg', 'Filtered_EEG')
-    os.makedirs(path_folder, exist_ok=True)
-    
-    # 调用 filter_eeg 函数
-    filtered_eeg_dict = filter_eeg(eeg, verbose=verbose)
-    
-    # 保存每个频段的数据
-    for band, filtered_eeg in filtered_eeg_dict.items():
-        path_file = os.path.join(path_folder, f"sub{subject+1}_{band}_eeg.fif")
-        filtered_eeg.save(path_file, overwrite=True)
-        if verbose:
-            print(f"Saved {band} band filtered EEG to {path_file}")
-    
-    return filtered_eeg_dict
-
-def filter_eeg_and_save_dreamer(subject, verbose=True):
-    _, eeg, _ = utils.load_dreamer()
-    eeg = eeg[subject].transpose()
-    
-    path_current = os.getcwd()
-    path_parent = os.path.dirname(path_current)
-    path_folder = os.path.join(path_parent, 'data', 'DREAMER', 'Filtered_EEG')
-    os.makedirs(path_folder, exist_ok=True)
-    
-    # 调用 filter_eeg 函数
-    filtered_eeg_dict = filter_eeg(eeg, verbose=verbose)
-    
-    # 保存每个频段的数据
-    for band, filtered_eeg in filtered_eeg_dict.items():
-        path_file = os.path.join(path_folder, f"sub{subject+1}_{band}_eeg.fif")
-        filtered_eeg.save(path_file, overwrite=True)
-        if verbose:
-            print(f"Saved {band} band filtered EEG to {path_file}")
-    
-    return filtered_eeg_dict
-                
-def read_filtered_eegdata_dreamer(identifier, freq_band="Joint"):
+def filter_eeg_seed(identifier, verbose=True, save=False):
     """
-    Read filtered EEG data for the specified experiment and frequency band.
+    Load, filter, and optionally save SEED dataset EEG data into frequency bands.
 
     Parameters:
-    experiment (str): Name of the experiment (e.g., subject or session).
-    freq_band (str): Frequency band to load ("alpha", "beta", "gamma", "delta", "theta", or "joint").
-                     Default is "Joint".
+    identifier (str): Identifier for the subject/session.
+    verbose (bool): If True, prints progress messages. Default is True.
+    save (bool): If True, saves the filtered EEG data to disk. Default is False.
 
     Returns:
-    mne.io.Raw | dict: Returns the MNE Raw object for a single band or a dictionary of Raw objects for "joint".
+    dict:
+        A dictionary where keys are frequency band names and values are the filtered MNE Raw objects.
 
     Raises:
-    ValueError: If the specified frequency band is not valid.
-    FileNotFoundError: If the expected file does not exist.
+    FileNotFoundError: If the SEED data file cannot be found.
     """
-    path_current = os.getcwd()
-    path_parent = os.path.dirname(path_current)
-    path_folder = os.path.join(path_parent, 'data', 'DREAMER', 'Filtered_EEG')
+    # Load raw EEG data using the provided utility function
+    eeg = utils_eeg_loading.read_and_parse_seed(identifier)
+    
+    # Construct the output folder path for filtered data
+    base_path = os.path.abspath(os.path.join(os.getcwd(), "../../Research_Data/SEED/original eeg/Filtered_EEG"))
+    os.makedirs(base_path, exist_ok=True)
+    
+    # Filter the EEG data into different frequency bands
+    filtered_eeg_dict = filter_eeg(eeg, verbose=verbose)
+    
+    # Save filtered EEG data if requested
+    if save:
+        for band, filtered_eeg in filtered_eeg_dict.items():
+            path_file = os.path.join(base_path, f"{identifier}_{band}_eeg.fif")
+            filtered_eeg.save(path_file, overwrite=True)
+            if verbose:
+                print(f"Saved {band} band filtered EEG to {path_file}")
+    
+    return filtered_eeg_dict
 
-    try:
-        if freq_band in ["alpha", "beta", "gamma", "delta", "theta"]:
-            path_file = os.path.join(path_folder, f"{identifier}_{freq_band.capitalize()}_eeg.fif")
-            filtered_eeg = mne.io.read_raw_fif(path_file, preload=True)
-            return filtered_eeg
+def filter_eeg_dreamer(identifier, verbose=True, save=False):
+    """
+    Load, filter, and optionally save DREAMER dataset EEG data into frequency bands.
 
-        elif freq_band.lower() == "joint":
-            filtered_eeg = {}
-            for band in ["Alpha", "Beta", "Gamma", "Delta", "Theta"]:
-                path_file = os.path.join(path_folder, f"{identifier}_{band}_eeg.fif")
-                filtered_eeg[band.lower()] = mne.io.read_raw_fif(path_file, preload=True)
-            return filtered_eeg
+    Parameters:
+    identifier (str): Identifier for the trial/session.
+    verbose (bool): If True, prints progress messages. Default is True.
+    save (bool): If True, saves the filtered EEG data to disk. Default is False.
 
-        else:
-            raise ValueError(f"Invalid frequency band: {freq_band}. Choose from 'alpha', 'beta', 'gamma', 'delta', 'theta', or 'joint'.")
+    Returns:
+    dict:
+        A dictionary where keys are frequency band names and values are the filtered MNE Raw objects.
 
-    except FileNotFoundError as e:
-        raise FileNotFoundError(f"File not found for '{identifier}' and frequency band '{freq_band}'. Check the path and file existence.")
+    Raises:
+    FileNotFoundError: If the DREAMER data file cannot be found.
+    """
+    # Load raw EEG data using the provided utility function for DREAMER
+    eeg = utils_eeg_loading.read_and_parse_dreamer(identifier)
+    
+    # Construct the output folder path for filtered data
+    base_path = os.path.abspath(os.path.join(os.getcwd(), "../../Research_Data/DREAMER/original eeg/Filtered_EEG"))
+    os.makedirs(base_path, exist_ok=True)
+    
+    # Filter the EEG data into different frequency bands
+    filtered_eeg_dict = filter_eeg(eeg, verbose=verbose)
+    
+    # Save filtered EEG data if requested
+    if save:
+        for band, filtered_eeg in filtered_eeg_dict.items():
+            path_file = os.path.join(base_path, f"{identifier}_{band}_eeg.fif")
+            filtered_eeg.save(path_file, overwrite=True)
+            if verbose:
+                print(f"Saved {band} band filtered EEG to {path_file}")
+    
+    return filtered_eeg_dict
 
 # %% Feature Engineering
-def compute_distance_matrix():
-    distribution = utils.get_distribution()
+def compute_distance_matrix(dataset):
+    distribution = utils_feature_loading.read_distribution(dataset)
     channel_names, x, y, z = distribution['channel'], distribution['x'], distribution['y'], distribution['z']
     
     # 将 x, y, z 坐标堆叠成 (N, 3) 形状的矩阵
@@ -137,9 +149,9 @@ def compute_distance_matrix():
     
     return channel_names, distance_matrix
 
-def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experiment_range=range(1, 2), freq_band='joint', save=False, verbose=True):
+def fc_matrices_circle(dataset, subject_range=range(1, 2), experiment_range=range(1, 2), feature='pcc', freq_band='joint', save=False, verbose=True):
     """
-    计算 SEED 数据集的相关矩阵，并可选保存为 pickle 文件。
+    计算 SEED 数据集的相关矩阵，并可选保存。
     
     **新增功能**:
     - 记录总时间
@@ -156,8 +168,23 @@ def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experi
     返回：
     dict: 计算得到的相关矩阵字典。
     """
-    if dataset.lower() != 'seed':
-        raise ValueError("当前函数仅支持 SEED 数据集")
+    # Normalize parameters
+    dataset = dataset.upper()
+    
+    valid_dataset = ['SEED', 'DREAMER']
+    if not dataset in valid_dataset:
+        raise ValueError("Currently only support SEED and DREAMER datasets")
+
+    def eeg_loader(dataset, subject, experiment):
+        if dataset == 'SEED':
+            identifier = f'sub{subject}ex{experiment}'
+        elif dataset == 'DREAMER':
+            identifier = f'sub{subject}'
+            
+        eeg = utils_eeg_loading.read_eeg_filtered(dataset, identifier)
+        
+        return identifier, eeg
+        
 
     fc_matrices_dict = {}
 
@@ -170,10 +197,9 @@ def fc_matrices_circle(dataset, feature='pcc', subject_range=range(1, 2), experi
         for experiment in experiment_range:
             experiment_start_time = time.time()  # 记录单次 experiment 开始时间
             experiment_count += 1
-
-            identifier = f'sub{subject}ex{experiment}'
-            eeg_data = utils.load_seed_filtered(subject, experiment)
-
+            
+            identifier, eeg_data = eeg_loader(dataset, subject, experiment)
+            
             if freq_band.lower() in ['alpha', 'beta', 'gamma']:
                 data = np.array(eeg_data[freq_band.lower()])
                 if feature.lower() == 'pcc': 
@@ -279,7 +305,7 @@ def compute_corr_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=T
     # Optional: Visualization of correlation matrices
     if visualization and corr_matrices:
         avg_corr_matrix = np.mean(corr_matrices, axis=0)
-        utils.draw_projection(avg_corr_matrix)
+        utils_visualization.draw_projection(avg_corr_matrix)
 
     return corr_matrices
 
@@ -333,11 +359,10 @@ def compute_plv_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=Tr
     # Optional visualization
     if visualization and plv_matrices:
         avg_plv_matrix = np.mean(plv_matrices, axis=0)
-        utils.draw_projection(avg_plv_matrix)
+        utils_visualization.draw_projection(avg_plv_matrix)
     
     return plv_matrices
 
-# %% MI computing
 from tqdm import tqdm  # 用于进度条显示
 def compute_mi_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=True, visualization=True):
     """
@@ -421,32 +446,21 @@ def compute_mi_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=Tru
     # Optional visualization
     if visualization and mi_matrices:
         avg_mi_matrix = np.mean(mi_matrices, axis=0)
-        utils.draw_projection(avg_mi_matrix)
+        utils_visualization.draw_projection(avg_mi_matrix)
 
     return mi_matrices
 
 # %% Label Engineering
-def read_labels_dreamer():
-    path_current = os.getcwd()
-    path_parent = os.path.dirname(path_current)
-    path_labels = os.path.join(path_parent, 'data', 'DREAMER', 'labels', 'labels.txt')
-    df = pd.read_csv(path_labels, sep=r'\s+', engine='python')
-    return {col: df[col].to_numpy() for col in df.columns}
-
-def generate_labels(samplingrate=128):
-    path_current = os.getcwd()
-    path_parent = os.path.dirname(path_current)
-    path_data = os.path.join(path_parent, 'data', 'DREAMER', 'DREAMER.mat')
-
-    mat_data = utils.read_mat(path_data)
+def generate_labels(samplingrate=128):    
+    dreamer = utils_eeg_loading.read_eeg_originaldataset('dreamer')
     
-    # %% labels
+    # labels
     score_arousal = 0
     score_dominance = 0
     score_valence = 0
     index = 0
     eeg_all = []
-    for data in mat_data['DREAMER']['Data']:
+    for data in dreamer['DREAMER']['Data']:
         index += 1
         score_arousal += data['ScoreArousal']
         score_dominance += data['ScoreDominance']
@@ -458,7 +472,7 @@ def generate_labels(samplingrate=128):
     score_dominance_labels = normalize_to_labels(score_dominance, labels)
     score_valence_labels = normalize_to_labels(score_valence, labels)
     
-    # %% data
+    # data
     eeg_sample = eeg_all[0]
     labels_arousal = []
     labels_dominance = []
@@ -550,14 +564,46 @@ def interpolate_matrices(data, scale_factor=(1.0, 1.0), method='nearest'):
 
     return new_data
 
-# %% usage
+# %% Example usage
 if __name__ == "__main__":
-    # distance_matrix = compute_distance_matrix()
-    # utils.draw_projection(distance_matrix)
+    # %% Filter EEG
+    # eeg = utils_eeg_loading.read_eeg_originaldataset('seed', 'sub1ex1')
+    # filtered_eeg_seed_sample = filter_eeg_seed('sub1ex1')
     
-    # fc_pcc_matrices = fc_matrices_circle('SEED', feature='pcc', save=True, subject_range=range(1, 16), experiment_range=range(1, 4))
-    # fc_plv_matrices = fc_matrices_circle('SEED', feature='plv', save=True, subject_range=range(1, 16), experiment_range=range(1, 4))
+    # eeg = utils_eeg_loading.read_eeg_originaldataset('dreamer', 'sub1')
+    # filtered_eeg_seed_sample = filter_eeg_dreamer('sub1')    
+    
+    # %% Feature Engineering; Distance Matrix
+    # channel_names, distance_matrix = compute_distance_matrix('seed')
+    # utils_visualization.draw_projection(distance_matrix)
+    
+    # channel_names, distance_matrix = compute_distance_matrix('dreamer')
+    # utils_visualization.draw_projection(distance_matrix)
+    
+    # %% Feature Engineering; Compute functional connectivities
+    # eeg_sample_seed = utils_eeg_loading.read_and_parse_seed('sub1ex1')
+    # pcc_sample_seed = compute_corr_matrices(eeg_sample_seed, samplingrate=200)
+    # plv_sample_seed = compute_plv_matrices(eeg_sample_seed, samplingrate=200)
+    # # mi_sample_seed = compute_mi_matrices(eeg_sample_seed, samplingrate=200)
+    
+    # eeg_sample_dreamer = utils_eeg_loading.read_and_parse_dreamer('sub1')
+    # pcc_sample_dreamer = compute_corr_matrices(eeg_sample_dreamer, samplingrate=128)
+    # plv_sample_dreamer = compute_plv_matrices(eeg_sample_dreamer, samplingrate=128)
+    # # mi_sample_dreamer = compute_mi_matrices(eeg_sample_dreamer, samplingrate=128)
+    
+    # %% Label Engineering
+    labels_seed = utils_feature_loading.read_labels('seed')
+    labels_dreamer = utils_feature_loading.read_labels('dreamer')
+    
+    labels_dreamer_ = generate_labels()
+    
+    # %% Interpolation
+    
+    # %% Feature Engineering; Computation circles
+    # fc_pcc_matrices_seed = fc_matrices_circle('SEED', feature='pcc', save=False, subject_range=range(1, 2), experiment_range=range(1, 2))
+    # fc_pcc_matrices_dreamer = fc_matrices_circle('dreamer', feature='pcc', save=False, subject_range=range(1, 2))
+    # fc_plv_matrices = fc_matrices_circle('SEED', feature='plv', save=True, subject_range=range(1, 2), experiment_range=range(1, 2))
     # fc_mi_matrices = fc_matrices_circle('SEED', feature='mi', save=True, subject_range=range(1, 2), experiment_range=range(1, 4))
-        
+    
     # %% End program actions
-    utils.end_program_actions(play_sound=True, shutdown=False, countdown_seconds=120)
+    # utils.end_program_actions(play_sound=True, shutdown=False, countdown_seconds=120)

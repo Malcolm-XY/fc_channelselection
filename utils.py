@@ -190,6 +190,7 @@ def get_distribution(mapping_method='auto'):
 
 def get_ranking(ranking='label_driven_mi'):
     # define path
+    
     path_current = os.getcwd()
     
     path_ranking = os.path.join(path_current, 'Distribution', 'electrodes_ranking.txt')
@@ -197,7 +198,6 @@ def get_ranking(ranking='label_driven_mi'):
     ranking = pd.read_csv(path_ranking, sep='\t')
     
     return ranking
-
 # %% SEED Specific Functions
 # original eegl; seed
 def load_seed(subject, experiment, band='full'):
@@ -313,10 +313,11 @@ def load_dreamer():
     path_parent = os.path.dirname(path_current)
     path_parent_parent = os.path.dirname(path_parent)
     
-    path_data = os.path.join(path_parent_parent, 'Research_Data', 'DREAMER', 'DREAMER.mat')
+    path_data = os.path.join(path_parent_parent, 'Research_Data', 'DREAMER', 'original eeg', 'DREAMER.mat')
     dreamer = read_mat(path_data)
     eeg_dic = [np.vstack(trial["EEG"]["stimuli"]) for trial in dreamer["DREAMER"]["Data"]]
-    return dreamer, eeg_dic, dreamer["DREAMER"]["EEG_Electrodes"]
+    eeg_dic_transposed = [matrix.T for matrix in eeg_dic]
+    return dreamer, eeg_dic_transposed, dreamer["DREAMER"]["EEG_Electrodes"]
 
 def load_dreamer_filtered(experiment, band='joint'):
     path_current = os.getcwd()
@@ -470,25 +471,26 @@ def end_program_actions(play_sound=True, shutdown=False, countdown_seconds=120):
 if __name__ == '__main__':
     # %% SEED
     # dataset
-    seed_sub_sample, seed_ex_sample, seed_fre_sample1, seed_fre_sample2  = 1, 1, 'alpha', 'joint'
-    seed_sample_1 = load_seed(seed_sub_sample, seed_ex_sample, band=seed_fre_sample1)
-    seed_sample_2 = load_seed(seed_sub_sample, seed_ex_sample, band=seed_fre_sample2)
+    # seed_sub_sample, seed_ex_sample, seed_fre_sample1, seed_fre_sample2  = 1, 1, 'alpha', 'joint'
+    # seed_sample_1 = load_seed(seed_sub_sample, seed_ex_sample, band=seed_fre_sample1)
+    # seed_sample_2 = load_seed(seed_sub_sample, seed_ex_sample, band=seed_fre_sample2)
     
-    # cfs
-    experiment_sample, feature_sample, freq_sample_1, freq_sample_2 = 'sub1ex1', 'de_LDS', 'alpha', 'joint'
-    seed_cfs_sample_1 = load_cfs_seed(experiment_sample, feature=feature_sample, band=freq_sample_1)
-    seed_cfs_sample_2 = load_cfs_seed(experiment_sample, feature=feature_sample, band=freq_sample_2)
+    # # cfs
+    # experiment_sample, feature_sample, freq_sample_1, freq_sample_2 = 'sub1ex1', 'de_LDS', 'alpha', 'joint'
+    # seed_cfs_sample_1 = load_cfs_seed(experiment_sample, feature=feature_sample, band=freq_sample_1)
+    # seed_cfs_sample_2 = load_cfs_seed(experiment_sample, feature=feature_sample, band=freq_sample_2)
     
-    # cms
-    experiment_sample, feature_sample, freq_sample_1, freq_sample_2 = 'sub1ex1', 'PCC', 'alpha', 'joint'
-    seed_cms_sample_1 = load_cms(dataset='SEED', experiment=experiment_sample, feature=feature_sample, band=freq_sample_1)
-    seed_cms_sample_2 = load_cms(dataset='SEED', experiment=experiment_sample, feature=feature_sample, band=freq_sample_2)
+    # # cms
+    # experiment_sample, feature_sample, freq_sample_1, freq_sample_2 = 'sub1ex1', 'PCC', 'alpha', 'joint'
+    # seed_cms_sample_1 = load_cms(dataset='SEED', experiment=experiment_sample, feature=feature_sample, band=freq_sample_1)
+    # seed_cms_sample_2 = load_cms(dataset='SEED', experiment=experiment_sample, feature=feature_sample, band=freq_sample_2)
     
-    labels_SEED = read_labels_seed()
+    # labels_SEED = read_labels_seed()
     
     # %% DREAMER
-    # # dataset
-    # dreamer, dreamer_eeg_, dreamer_electrodes = load_dataset(dataset='DREAMER')
+    # dataset
+    dreamer, dreamer_eeg_, dreamer_electrodes = load_dataset(dataset='DREAMER')
+    sample = dreamer_eeg_[0]
     # dreamer_sub_sample, dreamer_fre_sample_1, dreamer_fre_sample_2 = 1, 'alpha', 'joint'
     # draemer_sample_1 = load_dreamer_filtered(dreamer_sub_sample, band=dreamer_fre_sample_1)
     # draemer_sample_2 = load_dreamer_filtered(dreamer_sub_sample, band=dreamer_fre_sample_2)
