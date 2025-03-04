@@ -6,112 +6,8 @@ Created on Sat Mar  1 00:17:25 2025
 """
 
 import os
-# import h5py
-# import scipy
-# import numpy as np
-# import pandas as pd
 
 import utils_basic_reading
-
-# %% Basic File Reading Functions
-# def read_txt(path_file):
-#     """
-#     Reads a text file and returns its content as a Pandas DataFrame.
-    
-#     Parameters:
-#     - path_file (str): Path to the text file.
-    
-#     Returns:
-#     - pd.DataFrame: DataFrame containing the parsed text data.
-#     """
-#     return pd.read_csv(path_file, sep=r'\s+', engine='python')
-
-# def read_xlsx(path_file):
-#     xls = pd.ExcelFile(path_file)
-#     dfs = {sheet: xls.parse(sheet) for sheet in xls.sheet_names}
-#     return dfs
-
-# def read_hdf5(path_file):
-#     """
-#     Reads an HDF5 file and returns its contents as a dictionary.
-    
-#     Parameters:
-#     - path_file (str): Path to the HDF5 file.
-    
-#     Returns:
-#     - dict: Parsed data from the HDF5 file.
-    
-#     Raises:
-#     - FileNotFoundError: If the file does not exist.
-#     - TypeError: If the file is not a valid HDF5 format.
-#     """
-#     if not os.path.exists(path_file):
-#         raise FileNotFoundError(f"File not found: {path_file}")
-
-#     try:
-#         with h5py.File(path_file, 'r') as f:
-#             return {key: simplify_mat_structure(f[key]) for key in f.keys()}
-#     except OSError:
-#         raise TypeError(f"File '{path_file}' is not in HDF5 format.")
-
-# def read_mat(path_file, simplify=True):
-#     """
-#     Reads a MATLAB .mat file, supporting both HDF5 and older formats.
-    
-#     Parameters:
-#     - path_file (str): Path to the .mat file.
-#     - simplify (bool): Whether to simplify the data structure (default: True).
-    
-#     Returns:
-#     - dict: Parsed MATLAB file data.
-    
-#     Raises:
-#     - FileNotFoundError: If the file does not exist.
-#     - TypeError: If the file format is invalid.
-#     """
-#     if not os.path.exists(path_file):
-#         raise FileNotFoundError(f"File not found: {path_file}")
-    
-#     try:
-#         # Attempt to read as HDF5 format
-#         with h5py.File(path_file, 'r') as f:
-#             return {key: simplify_mat_structure(f[key]) for key in f.keys()} if simplify else f
-#     except OSError:
-#         try:
-#             # Read as non-HDF5 .mat file
-#             mat_data = scipy.io.loadmat(path_file, squeeze_me=simplify, struct_as_record=not simplify)
-#             return {key: simplify_mat_structure(value) for key, value in mat_data.items() if not key.startswith('_')} if simplify else mat_data
-#         except Exception as e:
-#             raise TypeError(f"Failed to read '{path_file}': {e}")
-
-# def simplify_mat_structure(data):
-#     """
-#     Recursively processes and simplifies MATLAB data structures.
-    
-#     Converts:
-#     - HDF5 datasets to NumPy arrays or scalars.
-#     - HDF5 groups to Python dictionaries.
-#     - MATLAB structs to Python dictionaries.
-#     - Cell arrays to Python lists.
-#     - NumPy arrays are squeezed to remove unnecessary dimensions.
-    
-#     Parameters:
-#     - data: Input data (HDF5, MATLAB struct, NumPy array, etc.).
-    
-#     Returns:
-#     - Simplified Python data structure.
-#     """
-#     if isinstance(data, h5py.Dataset):
-#         return data[()]
-#     elif isinstance(data, h5py.Group):
-#         return {key: simplify_mat_structure(data[key]) for key in data.keys()}
-#     elif isinstance(data, scipy.io.matlab.mat_struct):
-#         return {field: simplify_mat_structure(getattr(data, field)) for field in data._fieldnames}
-#     elif isinstance(data, np.ndarray):
-#         if data.dtype == 'object':
-#             return [simplify_mat_structure(item) for item in data]
-#         return np.squeeze(data)
-#     return data
 
 # %% Read Feature Functions
 def read_cfs(dataset, identifier, feature, band='joint'):
@@ -177,39 +73,56 @@ def read_labels(dataset):
 
 # %% Read Distributions
 def read_distribution(dataset, mapping_method='auto'):
-    # Valid parameters
+    """
+    Read the electrode distribution file for a given EEG dataset and mapping method.
+
+    Parameters:
+    dataset (str): The EEG dataset name ('SEED' or 'DREAMER').
+    mapping_method (str): The mapping method ('auto' for automatic mapping, 'manual' for manual mapping).
+                          Default is 'auto'.
+
+    Returns:
+    list or pandas.DataFrame:
+        - The parsed electrode distribution data, depending on how `utils_basic_reading.read_txt` processes it.
+
+    Raises:
+    ValueError: If the dataset or mapping method is invalid.
+    FileNotFoundError: If the distribution file does not exist.
+    """
+    # Define valid parameters
     valid_datasets = ['SEED', 'DREAMER']
     valid_mapping_methods = ['auto', 'manual']
-    
+
     # Normalize inputs
-    dataset, mapping_method = dataset.upper(), mapping_method.lower()
+    dataset = dataset.upper()
+    mapping_method = mapping_method.lower()
+
+    # Validate inputs
+    if dataset not in valid_datasets:
+        raise ValueError(f"Invalid dataset: {dataset}. Choose from {', '.join(valid_datasets)}.")
     
-    # define path
-    path_current = os.getcwd()
-    path_parent = os.path.dirname(path_current)
-    path_parent_parent = os.path.dirname(path_parent)
-    path_distribution = os.path.join(path_parent_parent, 'Research_Data', dataset, 'electrode distribution')
-        
-    # read distribution txt
-    if dataset == 'SEED':
-        if mapping_method == 'auto':
-            path_distr = os.path.join(path_distribution, 
-                                              'biosemi62_64_channels_original_distribution.txt')
-            
-        elif mapping_method == 'manual':
-            path_distr = os.path.join(path_distribution, 
-                                                'biosemi62_64_channels_manual_distribution.txt')    
-    elif dataset == 'DREAMER':
-        if mapping_method == 'auto':
-            path_distr = os.path.join(path_distribution, 
-                                              'biosemi62_14_channels_original_distribution.txt')
-            
-        elif mapping_method == 'manual':
-            path_distr = os.path.join(path_distribution, 
-                                                'biosemi62_14_channels_manual_distribution.txt')    
-    
-    # read txt; channel distribution
-    distribution = utils_basic_reading.read_txt(path_distr) # pd.read_csv(path_distr, sep='\t')
+    if mapping_method not in valid_mapping_methods:
+        raise ValueError(f"Invalid mapping method: {mapping_method}. Choose from {', '.join(valid_mapping_methods)}.")
+
+    # Define the base path
+    base_path = os.path.abspath(os.path.join(os.getcwd(), "../../Research_Data", dataset, "electrode distribution"))
+
+    # Determine the correct file based on dataset and mapping method
+    file_map = {
+        ('SEED', 'auto'): "biosemi62_64_channels_original_distribution.txt",
+        ('SEED', 'manual'): "biosemi62_64_channels_manual_distribution.txt",
+        ('DREAMER', 'auto'): "biosemi62_14_channels_original_distribution.txt",
+        ('DREAMER', 'manual'): "biosemi62_14_channels_manual_distribution.txt",
+    }
+
+    path_distr = os.path.join(base_path, file_map[(dataset, mapping_method)])
+
+    # Check if file exists before reading
+    if not os.path.exists(path_distr):
+        raise FileNotFoundError(f"Distribution file not found: {path_distr}. Check dataset and mapping method.")
+
+    # Read and return the distribution file
+    distribution = utils_basic_reading.read_txt(path_distr)
     
     return distribution
 

@@ -10,6 +10,9 @@ import numpy as np
 import pandas as pd
 import scipy.signal
 
+import utils_eeg_loading
+import utils_feature_loading
+
 # %% Preprocessing
 def downsample_mean(data, factor):
     channels, points = data.shape
@@ -70,14 +73,18 @@ def min_max_normalize(arr):
 def Compute_MIs_Mean_SEED(subject_range=range(1,2), experiment_range=range(1,2), electrodes=None,
                      dataset='SEED', align_method='upsampling', verbose=False):
     # labels upsampling    
-    labels = utils.read_labels(dataset)
+    labels = utils_feature_loading.read_labels(dataset)
     
     # compute mis_mean
     mis, mis_normalized = [], []
     subject_range, experiment_range = subject_range, experiment_range
     for subject in subject_range:
         for experiment in experiment_range:
-            eeg_sample = utils.load_dataset('SEED', subject=subject, experiment=experiment)
+            
+            identifier = f'sub{subject}ex{experiment}'
+            
+            eeg_sample = utils_eeg_loading.read_and_parse_seed(identifier)
+            return eeg_sample
             
             # transform two variables by up/downsampling
             num_channels, len_points = eeg_sample.shape
@@ -118,13 +125,13 @@ def Compute_MIs_Mean_SEED(subject_range=range(1,2), experiment_range=range(1,2),
 
 if __name__ == "__main__":
     # get electrodes
-    distribution = utils.get_distribution()
+    distribution = utils_feature_loading.read_distribution('seed')
     electrodes = distribution['channel']
     
     # labels upsampling
-    labels = utils.read_labels('SEED')
+    labels = utils_feature_loading.read_labels('seed')
     labels_upsampled = upsample(labels, 200)
     
     # compute mis_mean
     subject_range, experiment_range = range(1,2), range(1,4)
-    Compute_MIs_Mean_SEED(subject_range, experiment_range, electrodes, align_method='upsampling', verbose=False)
+    eeg_sample = Compute_MIs_Mean_SEED(subject_range, experiment_range, electrodes, align_method='upsampling', verbose=False)

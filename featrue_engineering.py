@@ -452,7 +452,7 @@ def compute_mi_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=Tru
 
 # %% Label Engineering
 def generate_labels(samplingrate=128):    
-    dreamer = utils_eeg_loading.read_eeg_originaldataset('dreamer')
+    dreamer = utils_eeg_loading.read_eeg_original_dataset('dreamer')
     
     # labels
     score_arousal = 0
