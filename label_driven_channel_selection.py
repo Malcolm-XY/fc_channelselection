@@ -12,6 +12,7 @@ import scipy.signal
 
 import utils_eeg_loading
 import utils_feature_loading
+import utils_visualization
 
 # %% Preprocessing
 def downsample_mean(data, factor):
@@ -24,7 +25,7 @@ def downsample_mean(data, factor):
 def downsample_decimate(data, factor):
     return scipy.signal.decimate(data, factor, axis=1, ftype='fir', zero_phase=True)
 
-def upsample(data, factor):
+def up_sampling(data, factor):
     new_length = len(data) * factor
     data_upsampled = scipy.signal.resample(data, new_length)
     return data_upsampled
@@ -43,6 +44,8 @@ def compute_mi(x, y):
 def compute_mis(xs, y, electrodes=None, assemble_electrodes=True, verbose=True):
     mis = []
     for x in xs:
+        print(f"For x in computing mis: {x.shape}")
+        print(f"For y in computing mis: {y.shape}")
         mi = compute_mi(x, y)
         mis.append(mi)
     
@@ -56,13 +59,13 @@ def compute_mis(xs, y, electrodes=None, assemble_electrodes=True, verbose=True):
         
         if verbose: 
             mis_log = np.log(mis['mis'])
-            utils.plot_heatmap_1d(mis_log, electrodes) 
+            utils_visualization.draw_heatmap_1d(mis_log, electrodes)
         
         return mis, normalized_mis
     
     if verbose: 
         mis_log = np.log(mis)
-        utils.plot_heatmap_1d(mis_log) 
+        utils_visualization.draw_heatmap_1d(mis_log, electrodes)
     
     return mis, normalized_mis
     
@@ -73,7 +76,7 @@ def min_max_normalize(arr):
 def Compute_MIs_Mean_SEED(subject_range=range(1,2), experiment_range=range(1,2), electrodes=None,
                      dataset='SEED', align_method='upsampling', verbose=False):
     # labels upsampling    
-    labels = utils_feature_loading.read_labels(dataset)
+    labels = np.reshape(utils_feature_loading.read_labels(dataset), -1)
     
     # compute mis_mean
     mis, mis_normalized = [], []
@@ -84,15 +87,14 @@ def Compute_MIs_Mean_SEED(subject_range=range(1,2), experiment_range=range(1,2),
             identifier = f'sub{subject}ex{experiment}'
             
             eeg_sample = utils_eeg_loading.read_and_parse_seed(identifier)
-            return eeg_sample
             
-            # transform two variables by up/downsampling
+            # transform two variables by up/down sampling
             num_channels, len_points = eeg_sample.shape
             factor=int(len_points/len(labels))
             
             if align_method.lower() == 'upsampling':
                 eeg_sample_transformed = eeg_sample
-                labels_transformed = upsample(labels, factor=factor)
+                labels_transformed = up_sampling(labels, factor=factor)
                 
             elif align_method.lower() == 'downsampling':
                 eeg_sample_transformed = downsample_decimate(eeg_sample, factor=factor)
@@ -102,7 +104,7 @@ def Compute_MIs_Mean_SEED(subject_range=range(1,2), experiment_range=range(1,2),
             min_length = min(eeg_sample_transformed.shape[1], len(labels_transformed))
             eeg_sample_alined = eeg_sample_transformed[:, :min_length]
             labels_alined = labels_transformed[:min_length]
-            
+
             # compute mis
             mis_temp, mis_sampled_temp = compute_mis(eeg_sample_alined, labels_alined, electrodes=electrodes)
             
@@ -114,12 +116,12 @@ def Compute_MIs_Mean_SEED(subject_range=range(1,2), experiment_range=range(1,2),
     mis_mean_ = pd.DataFrame({'electrodes':electrodes, 'mi_mean':mis_mean})
     
     # plot heatmap
-    utils.plot_heatmap_1d(mis_mean, electrodes)
-    utils.plot_heatmap_1d(np.log(mis_mean), electrodes)
+    utils_visualization.draw_heatmap_1d(mis_mean, electrodes)
+    utils_visualization.draw_heatmap_1d(np.log(mis_mean), electrodes)
     
     # get ascending indices
     mis_mean_resorted = mis_mean_.sort_values('mi_mean', ascending=False)
-    utils.plot_heatmap_1d(np.log(mis_mean_resorted['mi_mean']), mis_mean_resorted['electrodes'])
+    utils_visualization.draw_heatmap_1d(np.log(mis_mean_resorted['mi_mean']), mis_mean_resorted['electrodes'])
     
     return mis_mean_, mis_mean_resorted
 
@@ -130,8 +132,8 @@ if __name__ == "__main__":
     
     # labels upsampling
     labels = utils_feature_loading.read_labels('seed')
-    labels_upsampled = upsample(labels, 200)
+    labels_upsampled = up_sampling(labels, 200)
     
     # compute mis_mean
     subject_range, experiment_range = range(1,2), range(1,4)
-    eeg_sample = Compute_MIs_Mean_SEED(subject_range, experiment_range, electrodes, align_method='upsampling', verbose=False)
+    mis_mean_, mis_mean_resorted = Compute_MIs_Mean_SEED(subject_range, experiment_range, electrodes, align_method='upsampling', verbose=False)

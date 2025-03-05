@@ -7,18 +7,13 @@ Created on Thu Feb 13 23:15:11 2025
 
 import os
 import time
-import pickle
 import h5py
 import numpy as np
-import pandas as pd
 
 import mne
-import mne_connectivity
 from scipy.signal import hilbert
-from scipy.stats import gaussian_kde
 
 import joblib
-# import utils
 
 import utils_eeg_loading
 import utils_feature_loading
@@ -135,6 +130,26 @@ def filter_eeg_dreamer(identifier, verbose=True, save=False):
     
     return filtered_eeg_dict
 
+def filter_eeg_and_save_circle(dataset, subject_range, experiment_range=None, verbose=True, save=False):
+    # Normalize parameters
+    dataset = dataset.upper()
+
+    valid_dataset = ['SEED', 'DREAMER']
+    if dataset not in valid_dataset:
+        raise ValueError(f"{dataset} is not a valid dataset. Valid datasets are: {valid_dataset}")
+
+    if dataset == 'SEED' and subject_range is not None and experiment_range is not None:
+        for subject in subject_range:
+            for experiment in experiment_range:
+                print(f"Processing Subject: {subject}, Experiment: {experiment}.")
+                filter_eeg_seed(subject, verbose=verbose, save=save)
+    elif dataset == 'DREAMER' and subject_range is not None and experiment_range is None:
+        for subject in subject_range:
+            print(f"Processing Subject: {subject}.")
+            filter_eeg_dreamer(subject, verbose=verbose, save=save)
+    else:
+        raise ValueError("Error of unexpected subject or experiment range designation.")
+
 # %% Feature Engineering
 def compute_distance_matrix(dataset):
     distribution = utils_feature_loading.read_distribution(dataset)
@@ -149,7 +164,123 @@ def compute_distance_matrix(dataset):
     
     return channel_names, distance_matrix
 
-def fc_matrices_circle(dataset, subject_range=range(1, 2), experiment_range=range(1, 2), feature='pcc', freq_band='joint', save=False, verbose=True):
+def fc_matrices_circle(dataset, subject_range=range(1, 2), experiment_range=range(1, 2),
+                       feature='pcc', band='joint', save=False, verbose=True):
+    """
+    Computes functional connectivity matrices for EEG datasets.
+
+    Features:
+    - Computes connectivity matrices based on the selected feature and frequency band.
+    - Records total and average computation time.
+    - Optionally saves results in HDF5 format.
+
+    Parameters:
+    - dataset (str): Dataset name ('SEED' or 'DREAMER').
+    - subject_range (range): Range of subject IDs (default: range(1, 2)).
+    - experiment_range (range): Range of experiment IDs (default: range(1, 2)).
+    - feature (str): Connectivity feature ('pcc', 'plv', 'mi').
+    - band (str): Frequency band ('delta', 'theta', 'alpha', 'beta', 'gamma', or 'joint').
+    - save (bool): Whether to save results (default: False).
+    - verbose (bool): Whether to print timing information (default: True).
+
+    Returns:
+    - dict: Dictionary containing computed functional connectivity matrices.
+    """
+
+    dataset = dataset.upper()
+    feature = feature.lower()
+    band = band.lower()
+
+    valid_datasets = {'SEED', 'DREAMER'}
+    valid_features = {'pcc', 'plv', 'mi'}
+    valid_bands = {'joint', 'theta', 'delta', 'alpha', 'beta', 'gamma'}
+
+    if dataset not in valid_datasets:
+        raise ValueError(f"Invalid dataset '{dataset}'. Supported datasets: {valid_datasets}")
+    if feature not in valid_features:
+        raise ValueError(f"Invalid feature '{feature}'. Supported features: {valid_features}")
+    if band not in valid_bands:
+        raise ValueError(f"Invalid band '{band}'. Supported bands: {valid_bands}")
+
+    def eeg_loader(subject, experiment=None):
+        """Loads EEG data for a given subject and experiment."""
+        identifier = f"sub{subject}ex{experiment}" if dataset == 'SEED' else f"sub{subject}"
+        eeg_data = utils_eeg_loading.read_eeg_filtered(dataset, identifier)
+        return identifier, eeg_data
+
+    fc_matrices = {}
+    start_time = time.time()
+    total_experiment_time = 0
+    experiment_count = 0
+
+    if dataset == 'SEED': 
+        sampling_rate = 200
+        experiments = experiment_range
+    elif dataset == 'DREAMER':
+        sampling_rate = 128
+        experiments = [None]
+
+    for subject in subject_range:
+        for experiment in experiments:
+            experiment_start = time.time()
+            experiment_count += 1
+
+            identifier, eeg_data = eeg_loader(subject, experiment)
+            bands_to_process = ['delta', 'theta', 'alpha', 'beta', 'gamma'] if band == 'joint' else [band]
+
+            fc_matrices[identifier] = {} if band == 'joint' else None
+
+            for current_band in bands_to_process:
+                data = np.array(eeg_data[current_band])
+
+                if feature == 'pcc':
+                    result = compute_corr_matrices(data, sampling_rate)
+                elif feature == 'plv':
+                    result = compute_plv_matrices(data, sampling_rate)
+                elif feature == 'mi':
+                    result = compute_mi_matrices(data, sampling_rate)
+
+                if band == 'joint':
+                    fc_matrices[identifier][current_band] = result
+                else:
+                    fc_matrices[identifier] = result
+
+            experiment_duration = time.time() - experiment_start
+            total_experiment_time += experiment_duration
+
+            if verbose:
+                print(f"Experiment {identifier} completed in {experiment_duration:.2f} seconds")
+
+            if save:
+                save_results(dataset, feature, identifier, fc_matrices[identifier])
+
+    total_time = time.time() - start_time
+    avg_experiment_time = total_experiment_time / experiment_count if experiment_count else 0
+
+    if verbose:
+        print(f"\nTotal time taken: {total_time:.2f} seconds")
+        print(f"Average time per experiment: {avg_experiment_time:.2f} seconds")
+
+    return fc_matrices
+
+def save_results(dataset, feature, identifier, data):
+    """Saves functional connectivity matrices to an HDF5 file."""
+    path_parent = os.path.dirname(os.getcwd())
+    path_parent_parent = os.path.dirname(path_parent)
+    base_path = os.path.join(path_parent_parent, 'Research_Data', dataset, 'functional connectivity', f'{feature}_h5')
+    os.makedirs(base_path, exist_ok=True)
+    
+    file_path = os.path.join(base_path, f"{identifier}.h5")
+    with h5py.File(file_path, 'w') as f:
+        if isinstance(data, dict):  # Joint band case
+            for band, matrix in data.items():
+                f.create_dataset(band, data=matrix, compression="gzip")
+        else:  # Single band case
+            f.create_dataset("connectivity", data=data, compression="gzip")
+
+    print(f"Data saved to {file_path}")
+
+def fc_matrices_circle_(dataset, subject_range=range(1, 2), experiment_range=range(1, 2), feature='pcc', band='joint', save=False, verbose=True):
     """
     计算 SEED 数据集的相关矩阵，并可选保存。
     
@@ -170,10 +301,18 @@ def fc_matrices_circle(dataset, subject_range=range(1, 2), experiment_range=rang
     """
     # Normalize parameters
     dataset = dataset.upper()
-    
+    feature = feature.lower()
+    band = band.lower()
+
     valid_dataset = ['SEED', 'DREAMER']
     if not dataset in valid_dataset:
         raise ValueError("Currently only support SEED and DREAMER datasets")
+    valid_feature = ['pcc', 'plv', 'mi']
+    if feature not in valid_feature:
+        raise ValueError(f"{feature} is not a valid feature. Valid features are: {valid_feature}")
+    valid_bands = ['joint', 'theta', 'delta', 'alpha', 'beta', 'gamma']
+    if band not in valid_bands:
+        raise ValueError(f"{band} is not a valid band. Valid bands are: {valid_bands}")
 
     def eeg_loader(dataset, subject, experiment):
         if dataset == 'SEED':
@@ -184,7 +323,6 @@ def fc_matrices_circle(dataset, subject_range=range(1, 2), experiment_range=rang
         eeg = utils_eeg_loading.read_eeg_filtered(dataset, identifier)
         
         return identifier, eeg
-        
 
     fc_matrices_dict = {}
 
@@ -193,31 +331,32 @@ def fc_matrices_circle(dataset, subject_range=range(1, 2), experiment_range=rang
     experiment_count = 0  # 计数 experiment 计算次数
     total_experiment_time = 0  # 累计 experiment 计算时间
 
-    for subject in subject_range:
-        for experiment in experiment_range:
+    # For processing DREAMER dataset
+    if dataset == 'DREAMER':
+        for subject in subject_range:
             experiment_start_time = time.time()  # 记录单次 experiment 开始时间
             experiment_count += 1
-            
-            identifier, eeg_data = eeg_loader(dataset, subject, experiment)
-            
-            if freq_band.lower() in ['alpha', 'beta', 'gamma']:
-                data = np.array(eeg_data[freq_band.lower()])
-                if feature.lower() == 'pcc': 
+
+            identifier, eeg_data = eeg_loader(dataset, subject, experiment=None)
+
+            if band.lower() in ['delta', 'theta', 'alpha', 'beta', 'gamma']:
+                data = np.array(eeg_data[band.lower()])
+                if feature.lower() == 'pcc':
                     fc_matrices_dict[identifier] = compute_corr_matrices(data, samplingrate=200)
-                elif feature.lower() == 'plv': 
+                elif feature.lower() == 'plv':
                     fc_matrices_dict[identifier] = compute_plv_matrices(data, samplingrate=200)
-                elif feature.lower() == 'mi': 
+                elif feature.lower() == 'mi':
                     fc_matrices_dict[identifier] = compute_mi_matrices(data, samplingrate=200)
 
-            elif freq_band.lower() == 'joint':
+            elif band.lower() == 'joint':
                 fc_matrices_dict[identifier] = {}  # 确保是字典
                 for band in ['delta', 'theta', 'alpha', 'beta', 'gamma']:
                     data = np.array(eeg_data[band])
-                    if feature.lower() == 'pcc': 
+                    if feature.lower() == 'pcc':
                         fc_matrices_dict[identifier][band] = compute_corr_matrices(data, samplingrate=200)
-                    elif feature.lower() == 'plv': 
+                    elif feature.lower() == 'plv':
                         fc_matrices_dict[identifier][band] = compute_plv_matrices(data, samplingrate=200)
-                    elif feature.lower() == 'mi': 
+                    elif feature.lower() == 'mi':
                         fc_matrices_dict[identifier][band] = compute_mi_matrices(data, samplingrate=200)
 
             # **记录单个 experiment 计算时间**
@@ -231,28 +370,91 @@ def fc_matrices_circle(dataset, subject_range=range(1, 2), experiment_range=rang
                 path_current = os.getcwd()
                 path_parent = os.path.dirname(path_current)
                 path_parent_parent = os.path.dirname(path_parent)
-                
-                path_folder = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'functional connectivity', f'{feature}_h5')
-                
+
+                path_folder = os.path.join(path_parent_parent, 'Research_Data', dataset, 'functional connectivity',
+                                           f'{feature}_h5')
+
                 """
                 将不同频段的功能连接矩阵存储为 HDF5 文件。
-            
+                
                 参数：
                 - fc_matrices_dict (dict): 功能连接矩阵数据。
                 - path_folder (str): 存储文件的目标文件夹路径。
                 - identifier (str): 数据标识符（如实验名称）。
-            
+                
                 返回：
                 - None
                 """
-                os.makedirs(path_folder, exist_ok=True)  
+                os.makedirs(path_folder, exist_ok=True)
                 file_path_h5 = os.path.join(path_folder, f"{identifier}.h5")
-            
+
                 with h5py.File(file_path_h5, 'w') as f:
                     for band in ["delta", "theta", "alpha", "beta", "gamma"]:
                         f.create_dataset(band, data=fc_matrices_dict[identifier][band], compression="gzip")
-            
+
                 print(f"Data saved to {file_path_h5}")
+
+    elif dataset == 'SEED':
+        for subject in subject_range:
+            for experiment in experiment_range:
+                experiment_start_time = time.time()  # 记录单次 experiment 开始时间
+                experiment_count += 1
+
+                identifier, eeg_data = eeg_loader(dataset, subject, experiment)
+
+                if band.lower() in ['delta', 'theta', 'alpha', 'beta', 'gamma']:
+                    data = np.array(eeg_data[band.lower()])
+                    if feature.lower() == 'pcc':
+                        fc_matrices_dict[identifier] = compute_corr_matrices(data, samplingrate=200)
+                    elif feature.lower() == 'plv':
+                        fc_matrices_dict[identifier] = compute_plv_matrices(data, samplingrate=200)
+                    elif feature.lower() == 'mi':
+                        fc_matrices_dict[identifier] = compute_mi_matrices(data, samplingrate=200)
+
+                elif band.lower() == 'joint':
+                    fc_matrices_dict[identifier] = {}  # 确保是字典
+                    for band in ['delta', 'theta', 'alpha', 'beta', 'gamma']:
+                        data = np.array(eeg_data[band])
+                        if feature.lower() == 'pcc':
+                            fc_matrices_dict[identifier][band] = compute_corr_matrices(data, samplingrate=200)
+                        elif feature.lower() == 'plv':
+                            fc_matrices_dict[identifier][band] = compute_plv_matrices(data, samplingrate=200)
+                        elif feature.lower() == 'mi':
+                            fc_matrices_dict[identifier][band] = compute_mi_matrices(data, samplingrate=200)
+
+                # **记录单个 experiment 计算时间**
+                experiment_time = time.time() - experiment_start_time
+                total_experiment_time += experiment_time
+                if verbose:
+                    print(f"Experiment {identifier} completed in {experiment_time:.2f} seconds")
+
+                # **保存计算结果**
+                if save:
+                    path_current = os.getcwd()
+                    path_parent = os.path.dirname(path_current)
+                    path_parent_parent = os.path.dirname(path_parent)
+
+                    path_folder = os.path.join(path_parent_parent, 'Research_Data', 'SEED', 'functional connectivity', f'{feature}_h5')
+
+                    """
+                    将不同频段的功能连接矩阵存储为 HDF5 文件。
+                
+                    参数：
+                    - fc_matrices_dict (dict): 功能连接矩阵数据。
+                    - path_folder (str): 存储文件的目标文件夹路径。
+                    - identifier (str): 数据标识符（如实验名称）。
+                
+                    返回：
+                    - None
+                    """
+                    os.makedirs(path_folder, exist_ok=True)
+                    file_path_h5 = os.path.join(path_folder, f"{identifier}.h5")
+
+                    with h5py.File(file_path_h5, 'w') as f:
+                        for band in ["delta", "theta", "alpha", "beta", "gamma"]:
+                            f.create_dataset(band, data=fc_matrices_dict[identifier][band], compression="gzip")
+
+                    print(f"Data saved to {file_path_h5}")
 
     # **计算总时间 & 平均 experiment 时间**
     total_time = time.time() - start_time
@@ -451,57 +653,57 @@ def compute_mi_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=Tru
     return mi_matrices
 
 # %% Label Engineering
-def generate_labels(samplingrate=128):    
+def generate_labels(samplingrate=128):
     dreamer = utils_eeg_loading.read_eeg_original_dataset('dreamer')
-    
+
     # labels
     score_arousal = 0
     score_dominance = 0
     score_valence = 0
     index = 0
     eeg_all = []
-    for data in dreamer['DREAMER']['Data']:
+    for data in dreamer['Data']:
         index += 1
         score_arousal += data['ScoreArousal']
         score_dominance += data['ScoreDominance']
         score_valence += data['ScoreValence']
         eeg_all.append(data['EEG']['stimuli'])
-        
+
     labels = [1, 3, 5]
     score_arousal_labels = normalize_to_labels(score_arousal, labels)
     score_dominance_labels = normalize_to_labels(score_dominance, labels)
     score_valence_labels = normalize_to_labels(score_valence, labels)
-    
+
     # data
     eeg_sample = eeg_all[0]
     labels_arousal = []
     labels_dominance = []
     labels_valence = []
-    for eeg_trial in range(0,len(eeg_sample)):     
+    for eeg_trial in range(0, len(eeg_sample)):
         label_container = np.ones(len(eeg_sample[eeg_trial]))
-        
+
         label_arousal = label_container * score_arousal_labels[eeg_trial]
         label_dominance = label_container * score_dominance_labels[eeg_trial]
         label_valence = label_container * score_valence_labels[eeg_trial]
-        
+
         labels_arousal = np.concatenate((labels_arousal, label_arousal))
         labels_dominance = np.concatenate((labels_dominance, label_dominance))
         labels_valence = np.concatenate((labels_valence, label_valence))
-        
+
     labels_arousal = labels_arousal[::samplingrate]
     labels_dominance = labels_dominance[::samplingrate]
     labels_valence = labels_valence[::samplingrate]
-    
+
     return labels_arousal, labels_dominance, labels_valence
 
 def normalize_to_labels(array, labels):
     """
     Normalize an array to discrete labels.
-    
+
     Parameters:
         array (np.ndarray): The input array.
         labels (list): The target labels to map to (e.g., [1, 3, 5]).
-    
+
     Returns:
         np.ndarray: The normalized array mapped to discrete labels.
     """
@@ -509,17 +711,81 @@ def normalize_to_labels(array, labels):
     array_min = np.min(array)
     array_max = np.max(array)
     normalized = (array - array_min) / (array_max - array_min)
-    
+
     # Step 2: Map to discrete labels
     bins = np.linspace(0, 1, len(labels))
     discrete_labels = np.digitize(normalized, bins, right=True)
-    
+
     # Map indices to corresponding labels
     return np.array([labels[i - 1] for i in discrete_labels])
 
 # %% interpolation
 import scipy.interpolate
-def interpolate_matrices(data, scale_factor=(1.0, 1.0), method='nearest'):
+def interpolate_matrices(
+    data: dict[str, np.ndarray], 
+    scale_factor: tuple[float, float] = (1.0, 1.0), 
+    method: str = 'nearest'
+) -> dict[str, np.ndarray]:
+    """
+    Perform interpolation on dictionary-formatted data, scaling each channel's (samples, w, h) data.
+
+    Parameters:
+    - data: dict, format {ch: numpy.ndarray}, where each value has shape (samples, w, h).
+    - scale_factor: tuple (float, float), interpolation scaling factor (new_w/w, new_h/h).
+    - method: str, interpolation method, options:
+        - 'nearest' (nearest neighbor)
+        - 'linear' (bilinear interpolation)
+        - 'cubic' (bicubic interpolation)
+
+    Returns:
+    - new_data: dict, format {ch: numpy.ndarray}, interpolated data with shape (samples, new_w, new_h).
+    """
+
+    if not isinstance(scale_factor, tuple):
+        raise TypeError("scale_factor must be a tuple of two floats (scale_w, scale_h).")
+    
+    if method not in {'nearest', 'linear', 'cubic'}:
+        raise ValueError("Invalid interpolation method. Choose from 'nearest', 'linear', or 'cubic'.")
+
+    new_data = {}  # Store interpolated data
+    
+    for ch, array in data.items():
+        if array.ndim != 3:
+            raise ValueError(f"Each array in data must have 3 dimensions (samples, w, h), but got {array.shape} for channel {ch}.")
+
+        samples, w, h = array.shape
+        new_w, new_h = int(w * scale_factor[0]), int(h * scale_factor[1])
+
+        # Ensure valid shape
+        if new_w <= 0 or new_h <= 0:
+            raise ValueError("Interpolated dimensions must be positive integers.")
+
+        # Generate original and target grid points
+        x_old = np.linspace(0, 1, w)
+        y_old = np.linspace(0, 1, h)
+        x_new = np.linspace(0, 1, new_w)
+        y_new = np.linspace(0, 1, new_h)
+
+        xx_old, yy_old = np.meshgrid(x_old, y_old, indexing='ij')
+        xx_new, yy_new = np.meshgrid(x_new, y_new, indexing='ij')
+
+        old_points = np.column_stack([xx_old.ravel(), yy_old.ravel()])
+        new_points = np.column_stack([xx_new.ravel(), yy_new.ravel()])
+
+        # Initialize new array
+        new_array = np.empty((samples, new_w, new_h), dtype=array.dtype)
+
+        # Perform interpolation for each sample
+        for i in range(samples):
+            values = array[i].ravel()
+            interpolated = scipy.interpolate.griddata(old_points, values, new_points, method=method)
+            new_array[i] = interpolated.reshape(new_w, new_h)
+
+        new_data[ch] = new_array
+
+    return new_data
+
+def interpolate_matrices_(data, scale_factor=(1.0, 1.0), method='nearest'):
     """
     对形如 samples x channels x w x h 的数据进行插值，使每个 w x h 矩阵放缩
 
@@ -564,6 +830,68 @@ def interpolate_matrices(data, scale_factor=(1.0, 1.0), method='nearest'):
 
     return new_data
 
+# %% padding
+def global_padding(matrix, width=81, verbose=True):
+    """
+    Pads a 2D, 3D or 4D matrix to the specified width while keeping the original data centered.
+    For shape of: width x height, samples x width x height, samples x channels x width x height.
+
+    Parameters:
+        matrix (np.ndarray): The input matrix to be padded.
+        width (int): The target width/height for padding.
+        verbose (bool): If True, prints the original and padded shapes.
+
+    Returns:
+        np.ndarray: The padded matrix with the specified width.
+    """
+    if len(matrix.shape) == 2:
+        width_input, _ = matrix.shape
+        total_padding = width - width_input
+        pad_before = total_padding // 2
+        pad_after = total_padding - pad_before
+
+        padded_matrix = np.pad(
+            matrix,
+            pad_width=((pad_before, pad_after), (pad_before, pad_after)),
+            mode='constant',
+            constant_values=0
+        )
+
+    elif len(matrix.shape) == 3:
+        _, width_input, _ = matrix.shape
+        total_padding = width - width_input
+        pad_before = total_padding // 2
+        pad_after = total_padding - pad_before
+
+        padded_matrix = np.pad(
+            matrix,
+            pad_width=((0, 0), (pad_before, pad_after), (pad_before, pad_after)),
+            mode='constant',
+            constant_values=0
+        )
+
+    elif len(matrix.shape) == 4:
+        _, _, width_input, _ = matrix.shape
+        total_padding = width - width_input
+        pad_before = total_padding // 2
+        pad_after = total_padding - pad_before
+
+        padded_matrix = np.pad(
+            matrix,
+            pad_width=((0, 0), (0, 0), (pad_before, pad_after), (pad_before, pad_after)),
+            mode='constant',
+            constant_values=0
+        )
+
+    else:
+        raise ValueError("Input matrix must be either 2D, 3D or 4D.")
+
+    if verbose:
+        print("Original shape:", matrix.shape)
+        print("Padded shape:", padded_matrix.shape)
+
+    return padded_matrix
+
 # %% Example usage
 if __name__ == "__main__":
     # %% Filter EEG
@@ -601,9 +929,12 @@ if __name__ == "__main__":
     
     # %% Feature Engineering; Computation circles
     # fc_pcc_matrices_seed = fc_matrices_circle('SEED', feature='pcc', save=False, subject_range=range(1, 2), experiment_range=range(1, 2))
-    # fc_pcc_matrices_dreamer = fc_matrices_circle('dreamer', feature='pcc', save=False, subject_range=range(1, 2))
-    # fc_plv_matrices = fc_matrices_circle('SEED', feature='plv', save=True, subject_range=range(1, 2), experiment_range=range(1, 2))
-    # fc_mi_matrices = fc_matrices_circle('SEED', feature='mi', save=True, subject_range=range(1, 2), experiment_range=range(1, 4))
-    
+    # fc_plv_matrices_seed = fc_matrices_circle('SEED', feature='plv', save=False, subject_range=range(1, 2), experiment_range=range(1, 2))
+    # fc_mi_matrices_seed = fc_matrices_circle('SEED', feature='mi', save=False, subject_range=range(1, 2), experiment_range=range(1, 2))
+
+    fc_pcc_matrices_dreamer = fc_matrices_circle('dreamer', feature='pcc', save=True, subject_range=range(1, 2))
+    fc_plv_matrices_dreamer = fc_matrices_circle('dreamer', feature='plv', save=True, subject_range=range(1, 2))
+    # fc_mi_matrices_dreamer = fc_matrices_circle('dreamer', feature='mi', save=True, subject_range=range(1, 2))
+
     # %% End program actions
     # utils.end_program_actions(play_sound=True, shutdown=False, countdown_seconds=120)

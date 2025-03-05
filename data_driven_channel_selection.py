@@ -10,7 +10,8 @@ import pickle
 import numpy as np
 import pandas as pd
 
-import utils
+import utils_ as utils
+import utils_feature_loading
 
 def read_pkl(path_file, method='pd'):
     if method == 'pd':
@@ -79,4 +80,5 @@ if __name__ == '__main__':
     # utils.draw_heatmap_1d(np.log(mis_mean_resorted['mi_mean']), mis_mean_resorted['electrodes'])
     
     # %% Test
-    data = read_functional_connectivity('sub1ex1_alpha', 'pcc')
+    # data = read_functional_connectivity('sub1ex1_alpha', 'pcc')
+    data_ = utils_feature_loading.read_fcs('seed', 'sub1ex1', 'pcc', 'alpha')

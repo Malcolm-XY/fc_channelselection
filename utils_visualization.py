@@ -7,7 +7,6 @@ Created on Thu Feb 27 18:02:23 2025
 
 import os
 import numpy as np
-import pandas as pd
 
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -50,20 +49,14 @@ def draw_projection(sample_projection):
         plt.colorbar()
         plt.title("2D Matrix Visualization")
         plt.show()
-    elif sample_projection.ndim == 3 and sample_projection.shape[0] == 3:
-        for i in range(3):
+    elif sample_projection.ndim == 3 and sample_projection.shape[0] <= 100:
+        for i in range(sample_projection.shape[0]):
             plt.imshow(sample_projection[i], cmap='viridis')
             plt.colorbar()
             plt.title(f"Channel {i + 1} Visualization")
             plt.show()
-    # define path
-    path_current = os.getcwd()
-    
-    path_ranking = os.path.join(path_current, 'Distribution', 'electrodes_ranking.txt')
-    # read txt; electrodes ranking
-    ranking = pd.read_csv(path_ranking, sep='\t')
-    
-    return ranking
+    else:
+        raise ValueError(f"the dimension of sample matrix for drawing is wrong, shape of sample: {sample_projection.shape}")
 
 # %% End Program Actions
 import time
