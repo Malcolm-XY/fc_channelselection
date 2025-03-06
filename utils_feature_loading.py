@@ -48,6 +48,14 @@ def read_fcs(dataset, identifier, feature, band='joint'):
     fcs_temp = utils_basic_reading.read_hdf5(path_file)
     return fcs_temp if band == 'joint' else fcs_temp.get(band, {})
 
+def read_fcs_mat(dataset, identifier, feature, band='joint'):
+    dataset, identifier, feature, band = dataset.upper(), identifier.lower(), feature.lower(), band.lower()
+    path_grandparent = os.path.abspath(os.path.join(os.getcwd(), "../.."))
+    path_file = os.path.join(path_grandparent, 'Research_Data', dataset, 'functional connectivity', f'{feature}_mat', f'{identifier}.mat')
+    fcs_mat = utils_basic_reading.read_mat(path_file)
+    
+    return fcs_mat if band == 'joint' else fcs_mat.get(band, {})
+
 # %% Read Labels Functions
 def read_labels(dataset):
     """
