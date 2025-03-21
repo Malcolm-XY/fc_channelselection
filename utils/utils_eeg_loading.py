@@ -12,7 +12,7 @@ import pandas as pd
 
 import mne
 
-import utils_basic_reading
+from . import utils_basic_reading
 
 # %% Read Original EEG/.mat
 def read_eeg_original_dataset(dataset, identifier=None, object_type='pandas_dataframe'):
@@ -133,7 +133,7 @@ def read_and_parse_dreamer(identifier):
     eeg_dict = {i: eeg_list_transposed[i] for i in range(len(eeg_list_transposed))}
     
     # Extract specific EEG
-    key = utils_basic_reading.get_last_number(identifier)-1
+    key = utils_basic_reading.get_last_number(identifier) - 1
     eeg = eeg_dict[key]
     
     return eeg

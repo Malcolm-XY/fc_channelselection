@@ -11,7 +11,8 @@ import numpy as np
 import pandas as pd
 
 import utils_ as utils
-import utils_feature_loading
+from utils import utils_feature_loading
+
 
 def read_pkl(path_file, method='pd'):
     if method == 'pd':

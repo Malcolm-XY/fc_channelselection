@@ -10,9 +10,8 @@ import h5py
 import numpy as np
 import pandas as pd
 
-import utils
-from utils import load_cms_seed
-from utils import draw_projection
+from utils import utils_feature_loading
+from utils import utils_visualization
 
 def load_global_averages(file_path='Distribution/fc_global_averages.h5'):
     """
@@ -34,7 +33,7 @@ def load_global_averages(file_path='Distribution/fc_global_averages.h5'):
     
     return global_alpha_average, global_beta_average, global_gamma_average
 
-def get_averaged_fcnetwork(feature, subjects=range(1,16), experiments=range(1,4), draw=True, save=False):
+def compute_averaged_fcnetwork(feature, subjects=range(1,16), experiments=range(1,4), draw=True, save=False):
     # 初始化存储结果的列表
     cmdata_averages_dict = []
 
@@ -46,13 +45,16 @@ def get_averaged_fcnetwork(feature, subjects=range(1,16), experiments=range(1,4)
     # 遍历 subject 和 experiment
     for subject in subjects:  # 假设 subjects 是整数
         for experiment in experiments:  # 假设 experiments 是整数
-            print(f'sub: {subject} ex: {experiment}')
+            identifier = f"sub{subject}ex{experiment}"
+            print(identifier)
             try:
                 # 加载数据
-                cmdata_alpha = load_cms_seed(feature, f'sub{subject}ex{experiment}')
-                cmdata_beta = load_cms_seed(feature, 'beta', f'sub{subject}ex{experiment}')
-                cmdata_gamma = load_cms_seed(feature, 'gamma', f'sub{subject}ex{experiment}')
-                
+                cmdata_alpha = utils_feature_loading.read_fcs(dataset='seed', identifier=identifier, feature=feature,
+                                                              band='alpha')
+                cmdata_beta = utils_feature_loading.read_fcs(dataset='seed', identifier=identifier, feature=feature,
+                                                             band='beta')
+                cmdata_gamma = utils_feature_loading.read_fcs(dataset='seed', identifier=identifier, feature=feature,
+                                                              band='gamma')
                 # 计算平均值
                 cmdata_alpha_averaged = np.mean(cmdata_alpha, axis=0)
                 cmdata_beta_averaged = np.mean(cmdata_beta, axis=0)
@@ -85,12 +87,14 @@ def get_averaged_fcnetwork(feature, subjects=range(1,16), experiments=range(1,4)
     global_alpha_average = np.mean(all_alpha_values, axis=0)
     global_beta_average = np.mean(all_beta_values, axis=0)
     global_gamma_average = np.mean(all_gamma_values, axis=0)
-    
+    global_joint_average = np.mean(np.stack([global_alpha_average, global_beta_average, global_gamma_average], axis=0), axis=0)
+
     if draw:
         # 输出结果
-        draw_projection(global_alpha_average)
-        draw_projection(global_beta_average)
-        draw_projection(global_gamma_average)
+        utils_visualization.draw_projection(global_alpha_average)
+        utils_visualization.draw_projection(global_beta_average)
+        utils_visualization.draw_projection(global_gamma_average)
+        utils_visualization.draw_projection(global_joint_average)
     
     if save:
         # 检查和创建 Distribution 文件夹
@@ -103,145 +107,66 @@ def get_averaged_fcnetwork(feature, subjects=range(1,16), experiments=range(1,4)
             f.create_dataset('alpha', data=global_alpha_average)
             f.create_dataset('beta', data=global_beta_average)
             f.create_dataset('gamma', data=global_gamma_average)
+            f.create_dataset('joint', data=global_joint_average)
         
         print(f"Results saved to {file_path}")
     
-    return global_alpha_average, global_beta_average, global_gamma_average
+    return global_alpha_average, global_beta_average, global_gamma_average, global_joint_average
 
-def compute_corr_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=True, visualization=True):
-    """
-    Compute correlation matrices for EEG data using a sliding window approach.
-    
-    Parameters:
-        eeg_data (numpy.ndarray): EEG data with shape (channels, time_samples).
-        samplingrate (int): Sampling rate of the EEG data in Hz.
-        window (float): Window size in seconds for segmenting EEG data.
-        overlap (float): Overlap fraction between consecutive windows (0 to 1).
-        verbose (bool): If True, prints progress.
-        visualization (bool): If True, displays correlation matrices.
-    
-    Returns:
-        list of numpy.ndarray: List of correlation matrices for each window.
-    """
-    # Compute step size based on overlap
-    step = int(samplingrate * window * (1 - overlap))  # Step size for moving window
-    segment_length = int(samplingrate * window)
+def compute_distance_matrix(dataset):
+    distribution = utils_feature_loading.read_distribution(dataset)
+    channel_names, x, y, z = distribution['channel'], distribution['x'], distribution['y'], distribution['z']
 
-    # Split EEG data into overlapping windows
-    split_segments = [
-        eeg_data[:, i:i + segment_length] 
-        for i in range(0, eeg_data.shape[1] - segment_length + 1, step)
-    ]
+    # 将 x, y, z 坐标堆叠成 (N, 3) 形状的矩阵
+    coords = np.vstack((x, y, z)).T  # 形状 (N, 3)
 
-    # Compute correlation matrices
-    corr_matrices = []
-    for idx, segment in enumerate(split_segments):
-        if segment.shape[1] < segment_length:
-            continue  # Skip incomplete segments
-        
-        # Compute Pearson correlation
-        corr_matrix = np.corrcoef(segment)
-        corr_matrices.append(corr_matrix)
+    # 计算欧几里得距离矩阵
+    diff = coords[:, np.newaxis, :] - coords[np.newaxis, :, :]
+    distance_matrix = np.sqrt(np.sum(diff ** 2, axis=-1))
 
-        if verbose:
-            print(f"Computed correlation matrix {idx + 1}/{len(split_segments)}")
-
-    # Optional: Visualization of correlation matrices
-    if visualization and corr_matrices:
-        avg_corr_matrix = np.mean(corr_matrices, axis=0)
-        draw_projection(avg_corr_matrix)
-
-    return corr_matrices
+    return channel_names, distance_matrix
 
 if __name__ == '__main__':
-    # get_averaged_fcnetwork('PCC', save=True)
-    # get_averaged_fcnetwork('PLV', save=True)
+    # %% Distance Matrix
+    # channel_names, distance_matrix = compute_distance_matrix('seed')
+    # utils_visualization.draw_projection(distance_matrix)
 
-    
-    # %% pcc    
-    # 初始化累加变量
-    joint_sum = 0
-    count = 0
-    
-    # 遍历 sub1-sub15 和 ex1-ex4
-    for sub in range(1, 16):
-        for ex in range(1, 3):
-            experiment = f"sub{sub}ex{ex}"
-            
-            # 读取数据
-            cmdata_alpha = load_cms_seed(feature='pcc', experiment=experiment, band='alpha')
-            cmdata_beta = load_cms_seed(feature='pcc', experiment=experiment, band='beta')
-            cmdata_gamma = load_cms_seed(feature='pcc', experiment=experiment, band='gamma')
-            
-            # 计算各频段均值
-            alpha = cmdata_alpha.mean(axis=(0, 1))
-            beta = cmdata_beta.mean(axis=(0, 1))
-            gamma = cmdata_gamma.mean(axis=(0, 1))
-            
-            # 计算 joint
-            joint = alpha + beta + gamma
-            
-            # 累加 joint
-            joint_sum += joint
-            count += 1
-    
-    # 计算 joint 的平均值
-    joint_mean = joint_sum / count
-    
+    # %% PCC
+    global_alpha_average, global_beta_average, global_gamma_average, global_joint_average  = compute_averaged_fcnetwork('PCC', subjects=range(1, 16), draw=True, save=True)
+
+    joint = global_joint_average
+    joint_mean_1d = np.mean(joint, axis=0)
+
     # get electrodes
-    distribution = utils.get_distribution()
+    distribution = utils_feature_loading.read_distribution('seed')
     electrodes = distribution['channel']
-    
+
     # arrange
-    joint_ = pd.DataFrame({'electrodes':electrodes, 'pcc_mean': joint_mean})
-    
+    joint_ = pd.DataFrame({'electrodes': electrodes, 'pcc_mean': joint_mean_1d})
+
     # plot heatmap
-    utils.plot_heatmap_1d(joint, electrodes)
-    
+    utils_visualization.draw_heatmap_1d(joint_mean_1d, electrodes)
+
     # get ascending indices
     joint_resorted = joint_.sort_values('pcc_mean', ascending=False)
-    utils.plot_heatmap_1d(joint_resorted['pcc_mean'], joint_resorted['electrodes'])
-    
-    # # %% plv
-    # # 初始化累加变量
-    # joint_sum = 0
-    # count = 0
-    
-    # # 遍历 sub1-sub15 和 ex1-ex4
-    # for sub in range(1, 16):
-    #     for ex in range(1, 3):
-    #         experiment = f"sub{sub}ex{ex}"
-            
-    #         # 读取数据
-    #         cmdata_alpha = load_cms_seed(feature='plv', experiment=experiment, band='alpha')
-    #         cmdata_beta = load_cms_seed(feature='plv', experiment=experiment, band='beta')
-    #         cmdata_gamma = load_cms_seed(feature='plv', experiment=experiment, band='gamma')
-            
-    #         # 计算各频段均值
-    #         alpha = cmdata_alpha.mean(axis=(0, 1))
-    #         beta = cmdata_beta.mean(axis=(0, 1))
-    #         gamma = cmdata_gamma.mean(axis=(0, 1))
-            
-    #         # 计算 joint
-    #         joint = alpha + beta + gamma
-            
-    #         # 累加 joint
-    #         joint_sum += joint
-    #         count += 1
-    
-    # # 计算 joint 的平均值
-    # joint_mean = joint_sum / count
-    
+    utils_visualization.draw_heatmap_1d(joint_resorted['pcc_mean'], joint_resorted['electrodes'])
+
+    # %% PLV
+    # global_alpha_average, global_beta_average, global_gamma_average, global_joint_average = compute_averaged_fcnetwork('PLV', subjects=range(1, 16), draw=True, save=True)
+    #
+    # joint = global_joint_average
+    # joint_mean_1d = np.mean(joint, axis=0)
+    #
     # # get electrodes
-    # distribution = utils.get_distribution()
+    # distribution = utils_feature_loading.read_distribution('seed')
     # electrodes = distribution['channel']
-    
+    #
     # # arrange
-    # joint_ = pd.DataFrame({'electrodes':electrodes, 'plv_mean': joint_mean})
-    
+    # joint_ = pd.DataFrame({'electrodes': electrodes, 'pcc_mean': joint_mean_1d})
+    #
     # # plot heatmap
-    # utils.plot_heatmap_1d(joint, electrodes)
-    
+    # utils_visualization.draw_heatmap_1d(joint_mean_1d, electrodes)
+    #
     # # get ascending indices
-    # joint_resorted = joint_.sort_values('plv_mean', ascending=False)
-    # utils.plot_heatmap_1d(joint_resorted['plv_mean'], joint_resorted['electrodes'])
+    # joint_resorted = joint_.sort_values('pcc_mean', ascending=False)
+    # utils_visualization.draw_heatmap_1d(joint_resorted['pcc_mean'], joint_resorted['electrodes'])

@@ -5,14 +5,12 @@ Created on Sun Feb 16 23:43:14 2025
 @author: 18307
 """
 
-import utils
 import numpy as np
 import pandas as pd
 import scipy.signal
 
-import utils_eeg_loading
-import utils_feature_loading
-import utils_visualization
+from utils import utils_feature_loading, utils_visualization, utils_eeg_loading
+
 
 # %% Preprocessing
 def downsample_mean(data, factor):

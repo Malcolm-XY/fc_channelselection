@@ -7,7 +7,7 @@ Created on Sat Mar  1 00:17:25 2025
 
 import os
 
-import utils_basic_reading
+from . import utils_basic_reading
 
 # %% Read Feature Functions
 def read_cfs(dataset, identifier, feature, band='joint'):

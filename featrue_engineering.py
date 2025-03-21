@@ -15,9 +15,8 @@ from scipy.signal import hilbert
 
 import joblib
 
-import utils_eeg_loading
-import utils_feature_loading
-import utils_visualization
+from utils import utils_feature_loading, utils_visualization, utils_eeg_loading
+
 
 # %% Filter EEG
 def filter_eeg(eeg, freq=128, verbose=False):
