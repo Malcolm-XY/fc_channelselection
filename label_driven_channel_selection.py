@@ -11,7 +11,6 @@ import scipy.signal
 
 from utils import utils_feature_loading, utils_visualization, utils_eeg_loading
 
-
 # %% Preprocessing
 def downsample_mean(data, factor):
     channels, points = data.shape
