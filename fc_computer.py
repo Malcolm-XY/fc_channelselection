@@ -257,7 +257,80 @@ def compute_distance_matrix(dataset, method='euclidean', normalize=False, normal
 
     return channel_names, distance_matrix
 
-def rank_and_visualize_fc_network(fc_matrix, electrodes, feature_name='feature', ascending=False, draw=True):
+def rank_and_visualize_fc_network(fc_matrix, electrodes, feature_name='feature', ascending=False, draw=True, exclude_electrodes=None):
+    """
+    对功能连接(FC)网络进行排序并可视化，并支持在排序后屏蔽指定电极。
+
+    Args:
+        fc_matrix (numpy.ndarray): 功能连接矩阵，形状为 (n, n) 或 (m, n, n)
+        electrodes (list): 电极标签列表
+        feature_name (str, optional): 特征名称，用于DataFrame列名。默认为'feature'
+        ascending (bool, optional): 排序顺序，True为升序，False为降序。默认为False
+        draw (bool, optional): 是否绘制热图。默认为True
+        exclude_electrodes (list[str], optional): 要在排序后排除的电极名称列表
+
+    Returns:
+        tuple: 包含以下元素:
+            - mean_values (numpy.ndarray): 每个节点的平均连接强度（全部电极）
+            - df_original (pandas.DataFrame): 包含电极和平均值的原始DataFrame
+            - df_ranked (pandas.DataFrame): 排除电极后的排序DataFrame
+            - rank_indices (numpy.ndarray): 排除电极后的索引，可用于重新排列原始矩阵
+    """
+    import numpy as np
+    import pandas as pd
+
+    if fc_matrix.ndim == 3:
+        mean_values = np.mean(np.mean(fc_matrix, axis=0), axis=0)
+    elif fc_matrix.ndim == 2:
+        mean_values = np.mean(fc_matrix, axis=0)
+    else:
+        raise ValueError(f"输入矩阵维度应为2或3，但得到的是{fc_matrix.ndim}")
+
+    if len(electrodes) != len(mean_values):
+        raise ValueError(f"电极数量({len(electrodes)})与连接矩阵节点数({len(mean_values)})不匹配")
+
+    # 确保 electrodes 是列表
+    electrodes = list(electrodes)
+
+    # 创建原始 DataFrame
+    column_name = "mean"
+    df_original = pd.DataFrame({'electrodes': electrodes, column_name: mean_values})
+
+    # 排序
+    df_ranked = df_original.sort_values(column_name, ascending=ascending).reset_index(drop=True)
+
+    # 在排序后排除指定电极
+    if exclude_electrodes is not None:
+        df_ranked = df_ranked[~df_ranked['electrodes'].isin(exclude_electrodes)].reset_index(drop=True)
+
+    # 重新获取排序后电极在原始 electrodes 中的索引
+    rank_indices = np.array([electrodes.index(e) for e in df_ranked['electrodes']])
+
+    # 绘图
+    if draw:
+        try:
+            import matplotlib.pyplot as plt
+            import seaborn as sns
+
+            # 排除电极后的均值
+            heat_values = df_ranked[column_name].values
+            heat_labels = df_ranked['electrodes'].values
+
+            plt.figure(figsize=(10, 2))
+            sns.heatmap([heat_values], cmap='viridis',
+                        xticklabels=heat_labels, yticklabels=False)
+            plt.title(f"sorted {feature_name} average connection strength\n(excluded: {exclude_electrodes})")
+            plt.tight_layout()
+            plt.show()
+
+        except ImportError:
+            print("Error in drawing heatmap: matplotlib or seaborn not installed.")
+        except Exception as e:
+            print(f"Error in drawing heatmap: {str(e)}")
+
+    return mean_values, df_original, df_ranked, rank_indices
+
+def rank_and_visualize_fc_network_(fc_matrix, electrodes, feature_name='feature', ascending=False, draw=True):
     """
     对功能连接(FC)网络进行排序并可视化。
 
@@ -515,8 +588,33 @@ if __name__ == '__main__':
     # mean_values, df_original, df_ranked, rank_indices = rank_and_visualize_fc_network(differ_PCC_DM, electrodes,
     #                                                                                   feature_name='PCC')
     
-    # %% Distance Matrix of differ(PCC, FM)
-    channel_names, distance_matrix = compute_distance_matrix('seed', normalize=True)
+    # %% Distance Matrix of differ(PCC, FM); ortho distance matrix; exponential factor
+    # channel_names, distance_matrix = compute_distance_matrix('seed')
+    # distance_matrix = normalize_matrix(distance_matrix)
+    # utils_visualization.draw_projection(distance_matrix)
+    
+    # factor_matrix = compute_volume_conduction_factors(distance_matrix, method='exponential')
+    # factor_matrix = normalize_matrix(factor_matrix)
+    # utils_visualization.draw_projection(factor_matrix)
+    
+    # _, _, _, global_joint_average = load_global_averages(feature='PCC')
+    # global_joint_average = normalize_matrix(global_joint_average)
+    # utils_visualization.draw_projection(global_joint_average)
+    
+    # differ_PCC_DM = global_joint_average - factor_matrix
+    # utils_visualization.draw_projection(differ_PCC_DM)
+
+    # # get electrodes
+    # distribution = utils_feature_loading.read_distribution('seed')
+    # electrodes = distribution['channel']
+    
+    # _, _, df_ranked, rank_indices = rank_and_visualize_fc_network(differ_PCC_DM, electrodes, feature_name='PCC', exclude_electrodes=['CB1', 'CB2'])
+    
+    # draw_weight_mapping(rank_indices, df_ranked['mean'])
+    
+    # %% Distance Matrix of differ(PCC, FM); stereo distance matrix; exponential factor
+    channel_names, distance_matrix = compute_distance_matrix('seed', method='stereo')
+    distance_matrix = normalize_matrix(distance_matrix)
     utils_visualization.draw_projection(distance_matrix)
     
     factor_matrix = compute_volume_conduction_factors(distance_matrix, method='exponential')
@@ -524,6 +622,7 @@ if __name__ == '__main__':
     utils_visualization.draw_projection(factor_matrix)
     
     _, _, _, global_joint_average = load_global_averages(feature='PCC')
+    global_joint_average = normalize_matrix(global_joint_average)
     utils_visualization.draw_projection(global_joint_average)
     
     differ_PCC_DM = global_joint_average - factor_matrix
@@ -533,7 +632,6 @@ if __name__ == '__main__':
     distribution = utils_feature_loading.read_distribution('seed')
     electrodes = distribution['channel']
     
-    _, _, df_ranked, rank_indices = rank_and_visualize_fc_network(differ_PCC_DM, electrodes, feature_name='PCC')
-    df_ranked.loc[df_ranked['electrodes'].isin(['CB1', 'CB2']), 'mean'] = 0
+    _, _, df_ranked, rank_indices = rank_and_visualize_fc_network(differ_PCC_DM, electrodes, feature_name='PCC', exclude_electrodes=['CB1', 'CB2'])
     
-    draw_weight_mapping(df_ranked.index, df_ranked['mean'])
+    draw_weight_mapping(rank_indices, df_ranked['mean'])
