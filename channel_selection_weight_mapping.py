@@ -79,10 +79,10 @@ def draw_weight_mapping(ranking_method='label_driven_mi', offset=0, transformati
     return weight_mean
 
 if __name__ == '__main__':    
-    # draw_weight_mapping(transformation='log', ranking_method='label_driven_mi')
+    draw_weight_mapping(transformation='log', ranking_method='label_driven_mi')
     # draw_weight_mapping(transformation=None, ranking_method='data_driven_mi')
-    draw_weight_mapping(transformation=None, ranking_method='data_driven_pcc')
+    # draw_weight_mapping(transformation=None, ranking_method='data_driven_pcc')
     # draw_weight_mapping(transformation=None, ranking_method='data_driven_plv')
 
-    draw_weight_mapping(transformation=None, ranking_method='data_driven_pcc_dm', reverse=False)    
-    draw_weight_mapping(transformation=None, ranking_method='data_driven_pcc_dm', reverse=True)
+    # draw_weight_mapping(transformation=None, ranking_method='data_driven_pcc_dm', reverse=False)    
+    # draw_weight_mapping(transformation=None, ranking_method='data_driven_pcc_dm', reverse=True)
