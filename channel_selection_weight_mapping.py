@@ -20,11 +20,11 @@ def get_ranking_weight(ranking='label_driven_mi'):
     
     # read xlxs; electrodes ranking
     ranking = pd.read_excel(path_ranking, sheet_name=ranking, engine='openpyxl')
-    ranking = ranking['mean']
+    weight = ranking['mean']
     
-    return ranking    
+    return weight
 
-def get_ranking(ranking='label_driven_mi'):
+def get_index(ranking='label_driven_mi'):
     # define path
     path_current = os.getcwd()
     
@@ -32,19 +32,19 @@ def get_ranking(ranking='label_driven_mi'):
     
     # read xlxs; electrodes ranking
     ranking = pd.read_excel(path_ranking, sheet_name=ranking, engine='openpyxl')
-    ranking = ranking['index(in origin dataset)']
+    index = ranking['index(in origin dataset)']
     
-    return ranking    
+    return index
 
 def draw_weight_mapping(ranking_method='label_driven_mi', offset=0, transformation='log', reverse=False):
     # 获取数据
-    ranking = get_ranking(ranking_method)
+    index = get_index(ranking_method)
     weight_mean = get_ranking_weight(ranking_method)  # 假设它返回一个与 electrodes 对应的值列表
     if reverse:
         weight_mean = 1 - weight_mean
     distribution = utils_feature_loading.read_distribution('seed')
     
-    dis_t = distribution.iloc[ranking]
+    dis_t = distribution.iloc[index]
     
     x = np.array(dis_t['x'])
     y = np.array(dis_t['y'])
@@ -76,10 +76,10 @@ def draw_weight_mapping(ranking_method='label_driven_mi', offset=0, transformati
     
     plt.show()
     
-    return weight_mean
+    return weight_mean, index
 
 if __name__ == '__main__':    
-    draw_weight_mapping(transformation='log', ranking_method='label_driven_mi')
+    weight_mean, index = draw_weight_mapping(ranking_method='label_driven_mi')
     # draw_weight_mapping(transformation=None, ranking_method='data_driven_mi')
     # draw_weight_mapping(transformation=None, ranking_method='data_driven_pcc')
     # draw_weight_mapping(transformation=None, ranking_method='data_driven_plv')

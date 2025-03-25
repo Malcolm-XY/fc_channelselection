@@ -13,7 +13,6 @@ import pandas as pd
 from utils import utils_feature_loading
 from utils import utils_visualization
 
-
 def load_global_averages(file_path=None, feature=None):
     """
     读取 HDF5 文件中的 global_alpha_average, global_beta_average, global_gamma_average 和 global_joint_average 数据。
@@ -405,6 +404,96 @@ def rank_and_visualize_fc_network_(fc_matrix, electrodes, feature_name='feature'
 def compute_volume_conduction_factors(distance_matrix, method='exponential', params=None):
     """
     基于距离矩阵计算体积电导效应的因子矩阵。
+    支持多种模型：exponential, gaussian, inverse, cutoff, powerlaw, rational_quadratic, generalized_gaussian, sigmoid
+
+    Args:
+        distance_matrix (numpy.ndarray): 电极间的距离矩阵，形状为 (n, n)
+        method (str): 建模方法
+        params (dict): 模型参数字典
+
+    Returns:
+        numpy.ndarray: 因子矩阵，与 distance_matrix 同形状
+    """
+    import numpy as np
+
+    distance_matrix = np.asarray(distance_matrix)
+    n = distance_matrix.shape[0]
+
+    # 默认参数集合
+    default_params = {
+        'exponential': {'sigma': 10.0},
+        'gaussian': {'sigma': 5.0},
+        'inverse': {'sigma': 5.0, 'alpha': 2.0},
+        'cutoff': {'threshold': 5.0, 'factor': 0.5},
+        'powerlaw': {'alpha': 2.0},
+        'rational_quadratic': {'sigma': 5.0, 'alpha': 1.0},
+        'generalized_gaussian': {'sigma': 5.0, 'beta': 2.0},
+        'sigmoid': {'mu': 5.0, 'beta': 1.0},
+    }
+
+    if params is None:
+        if method in default_params:
+            params = default_params[method]
+        else:
+            raise ValueError(f"未提供参数，且方法 '{method}' 没有默认参数")
+    elif method in default_params:
+        method_params = default_params[method].copy()
+        method_params.update(params)
+        params = method_params
+    else:
+        raise ValueError(f"不支持的建模方法: {method}")
+
+    # 初始化结果矩阵
+    factor_matrix = np.zeros_like(distance_matrix)
+    epsilon = 1e-6  # 防止除0或log0
+
+    if method == 'exponential':
+        sigma = params['sigma']
+        factor_matrix = np.exp(-distance_matrix / sigma)
+
+    elif method == 'gaussian':
+        sigma = params['sigma']
+        factor_matrix = np.exp(-np.square(distance_matrix) / (sigma ** 2))
+
+    elif method == 'inverse':
+        sigma = params['sigma']
+        alpha = params['alpha']
+        factor_matrix = 1.0 / (1.0 + np.power(distance_matrix / sigma, alpha))
+
+    elif method == 'cutoff':
+        threshold = params['threshold']
+        factor = params['factor']
+        factor_matrix = np.where(distance_matrix < threshold, factor, 0.0)
+
+    elif method == 'powerlaw':
+        alpha = params['alpha']
+        factor_matrix = 1.0 / (np.power(distance_matrix, alpha) + epsilon)
+
+    elif method == 'rational_quadratic':
+        sigma = params['sigma']
+        alpha = params['alpha']
+        factor_matrix = np.power(1.0 + (np.square(distance_matrix) / (2 * alpha * sigma ** 2)), -alpha)
+
+    elif method == 'generalized_gaussian':
+        sigma = params['sigma']
+        beta = params['beta']
+        factor_matrix = np.exp(-np.power(distance_matrix / sigma, beta))
+
+    elif method == 'sigmoid':
+        mu = params['mu']
+        beta = params['beta']
+        factor_matrix = 1.0 / (1.0 + np.exp((distance_matrix - mu) / beta))
+
+    else:
+        raise ValueError(f"不支持的体积电导建模方法: {method}")
+
+    # 对角线置为1（自我连接）
+    np.fill_diagonal(factor_matrix, 1.0)
+    return factor_matrix
+
+def compute_volume_conduction_factors_(distance_matrix, method='exponential', params=None):
+    """
+    基于距离矩阵计算体积电导效应的因子矩阵。
     
     Args:
         distance_matrix (numpy.ndarray): 电极间的距离矩阵，形状为 (n, n)
@@ -556,82 +645,34 @@ if __name__ == '__main__':
 
     # mean_values, df_original, df_ranked, rank_indices = rank_and_visualize_fc_network(global_joint_average, electrodes,
     #                                                                                   feature_name='PCC')
-
-    # %% Connectivity Matrix of PLV
-    # # global_alpha_average, global_beta_average, global_gamma_average, global_joint_average = compute_averaged_fcnetwork('PLV', subjects=range(1, 16), draw=True, save=True)
-    # global_alpha_average, global_beta_average, global_gamma_average, global_joint_average = load_global_averages(feature='PLV')
-
-    # joint = global_joint_average
-    # joint_mean_1d = np.mean(joint, axis=0)
-
-    # # get electrodes
-    # distribution = utils_feature_loading.read_distribution('seed')
-    # electrodes = distribution['channel']
-
-    # mean_values, df_original, df_ranked, rank_indices = rank_and_visualize_fc_network(global_joint_average, electrodes, feature_name='PLV')
-
-    # %% Connectivity Matrix of differ(PCC, DM)
-    # _, _, _, global_joint_average = load_global_averages(feature='PCC')
-    # channel_names, distance_matrix = compute_distance_matrix('seed', normalize=True)
     
-    # utils_visualization.draw_projection(global_joint_average)
-
-    # global_joint_average_r = 1 - normalize_matrix(global_joint_average)
-    # differ_PCC_DM = global_joint_average_r - distance_matrix
-
-    # utils_visualization.draw_projection(differ_PCC_DM)
-
-    # # get electrodes
-    # distribution = utils_feature_loading.read_distribution('seed')
-    # electrodes = distribution['channel']
+    # %% Matrix of differ(Connectivity_Matrix_PCC, Factor_Matrix); stereo distance matrix; generalized_gaussian
+    # Target
+    import channel_selection_weight_mapping
+    channel_selection_weight_mapping.draw_weight_mapping(ranking_method='label_driven_mi')
     
-    # mean_values, df_original, df_ranked, rank_indices = rank_and_visualize_fc_network(differ_PCC_DM, electrodes,
-    #                                                                                   feature_name='PCC')
-    
-    # %% Distance Matrix of differ(PCC, FM); ortho distance matrix; exponential factor
-    # channel_names, distance_matrix = compute_distance_matrix('seed')
-    # distance_matrix = normalize_matrix(distance_matrix)
-    # utils_visualization.draw_projection(distance_matrix)
-    
-    # factor_matrix = compute_volume_conduction_factors(distance_matrix, method='exponential')
-    # factor_matrix = normalize_matrix(factor_matrix)
-    # utils_visualization.draw_projection(factor_matrix)
-    
-    # _, _, _, global_joint_average = load_global_averages(feature='PCC')
-    # global_joint_average = normalize_matrix(global_joint_average)
-    # utils_visualization.draw_projection(global_joint_average)
-    
-    # differ_PCC_DM = global_joint_average - factor_matrix
-    # utils_visualization.draw_projection(differ_PCC_DM)
-
-    # # get electrodes
-    # distribution = utils_feature_loading.read_distribution('seed')
-    # electrodes = distribution['channel']
-    
-    # _, _, df_ranked, rank_indices = rank_and_visualize_fc_network(differ_PCC_DM, electrodes, feature_name='PCC', exclude_electrodes=['CB1', 'CB2'])
-    
-    # draw_weight_mapping(rank_indices, df_ranked['mean'])
-    
-    # %% Distance Matrix of differ(PCC, FM); stereo distance matrix; exponential factor
+    # Fitted
     channel_names, distance_matrix = compute_distance_matrix('seed', method='stereo')
     distance_matrix = normalize_matrix(distance_matrix)
-    utils_visualization.draw_projection(distance_matrix)
-    
-    factor_matrix = compute_volume_conduction_factors(distance_matrix, method='exponential')
+    # utils_visualization.draw_projection(distance_matrix)
+
+    factor_matrix = compute_volume_conduction_factors(distance_matrix, method='generalized_gaussian', params={'sigma': 2.27, 'beta': 5.0})
     factor_matrix = normalize_matrix(factor_matrix)
-    utils_visualization.draw_projection(factor_matrix)
-    
+    # utils_visualization.draw_projection(factor_matrix)
+
     _, _, _, global_joint_average = load_global_averages(feature='PCC')
     global_joint_average = normalize_matrix(global_joint_average)
-    utils_visualization.draw_projection(global_joint_average)
-    
+    # utils_visualization.draw_projection(global_joint_average)
+
     differ_PCC_DM = global_joint_average - factor_matrix
-    utils_visualization.draw_projection(differ_PCC_DM)
+    # utils_visualization.draw_projection(differ_PCC_DM)
 
     # get electrodes
     distribution = utils_feature_loading.read_distribution('seed')
     electrodes = distribution['channel']
-    
-    _, _, df_ranked, rank_indices = rank_and_visualize_fc_network(differ_PCC_DM, electrodes, feature_name='PCC', exclude_electrodes=['CB1', 'CB2'])
-    
+
+    # **********************REVISE HERE
+    _, _, df_ranked, rank_indices = rank_and_visualize_fc_network(differ_PCC_DM, electrodes, feature_name='PCC') #, exclude_electrodes=['CB1', 'CB2'])
+    # **********************************
+
     draw_weight_mapping(rank_indices, df_ranked['mean'])
