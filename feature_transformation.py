@@ -10,6 +10,7 @@ import h5py
 import numpy as np
 import pandas as pd
 
+import featrue_engineering
 from utils import utils_feature_loading
 from utils import utils_visualization
 
@@ -127,58 +128,6 @@ def compute_averaged_fcnetwork(feature, subjects=range(1, 16), experiments=range
 
     return global_alpha_average, global_beta_average, global_gamma_average, global_joint_average
 
-def normalize_matrix(matrix, method='minmax'):
-    """
-    对矩阵进行归一化处理。
-
-    Args:
-        matrix (numpy.ndarray): 要归一化的矩阵或数组
-        method (str, optional): 归一化方法，可选值为'minmax'、'max'、'mean'、'z-score'。默认为'minmax'。
-            - 'minmax': (x - min) / (max - min)，将值归一化到[0,1]区间
-            - 'max': x / max，将最大值归一化为1
-            - 'mean': x / mean，相对于平均值进行归一化
-            - 'z-score': (x - mean) / std，标准化为均值0，标准差1
-
-    Returns:
-        numpy.ndarray: 归一化后的矩阵
-
-    Raises:
-        ValueError: 当提供的归一化方法不受支持时
-    """
-    # 创建输入矩阵的副本，避免修改原始数据
-    normalized = matrix.copy()
-
-    if method == 'minmax':
-        # Min-Max归一化：将值归一化到[0,1]区间
-        min_val = np.min(normalized)
-        max_val = np.max(normalized)
-        if max_val > min_val:  # 避免除以零
-            normalized = (normalized - min_val) / (max_val - min_val)
-
-    elif method == 'max':
-        # 最大值归一化：将值归一化到[0,1]区间，最大值为1
-        max_val = np.max(normalized)
-        if max_val > 0:  # 避免除以零
-            normalized = normalized / max_val
-
-    elif method == 'mean':
-        # 均值归一化：相对于平均值进行归一化
-        mean_val = np.mean(normalized)
-        if mean_val > 0:  # 避免除以零
-            normalized = normalized / mean_val
-
-    elif method == 'z-score':
-        # Z-score标准化：将均值归一化为0，标准差归一化为1
-        mean_val = np.mean(normalized)
-        std_val = np.std(normalized)
-        if std_val > 0:  # 避免除以零
-            normalized = (normalized - mean_val) / std_val
-
-    else:
-        raise ValueError(f"不支持的归一化方法: {method}，可选值为'minmax'、'max'、'mean'或'z-score'")
-
-    return normalized
-
 def compute_distance_matrix(dataset, method='euclidean', normalize=False, normalization_method='minmax',
                             stereo_params=None):
     """
@@ -256,150 +205,66 @@ def compute_distance_matrix(dataset, method='euclidean', normalize=False, normal
 
     return channel_names, distance_matrix
 
-def rank_and_visualize_fc_network(fc_matrix, electrodes, feature_name='feature', ascending=False, draw=True, exclude_electrodes=None):
+def rank_and_visualize_fc_strength(
+    node_strengths,
+    electrode_labels,
+    feature_name='feature',
+    ascending=False,
+    draw=True,
+    exclude_electrodes=None
+):
     """
-    对功能连接(FC)网络进行排序并可视化，并支持在排序后屏蔽指定电极。
+    Sort and visualize node strengths in a functional connectivity (FC) network,
+    with optional electrode exclusion after sorting.
 
     Args:
-        fc_matrix (numpy.ndarray): 功能连接矩阵，形状为 (n, n) 或 (m, n, n)
-        electrodes (list): 电极标签列表
-        feature_name (str, optional): 特征名称，用于DataFrame列名。默认为'feature'
-        ascending (bool, optional): 排序顺序，True为升序，False为降序。默认为False
-        draw (bool, optional): 是否绘制热图。默认为True
-        exclude_electrodes (list[str], optional): 要在排序后排除的电极名称列表
+        node_strengths (numpy.ndarray): 1D array of node strengths (e.g., mean connection strength per electrode).
+        electrode_labels (list of str): List of electrode names corresponding to nodes.
+        feature_name (str, optional): Name of the feature (used in plot title). Default is 'feature'.
+        ascending (bool, optional): Sort order. True for ascending, False for descending. Default is False.
+        draw (bool, optional): Whether to draw the heatmap. Default is True.
+        exclude_electrodes (list of str, optional): List of electrode names to exclude *after* sorting.
 
     Returns:
-        tuple: 包含以下元素:
-            - mean_values (numpy.ndarray): 每个节点的平均连接强度（全部电极）
-            - df_original (pandas.DataFrame): 包含电极和平均值的原始DataFrame
-            - df_ranked (pandas.DataFrame): 排除电极后的排序DataFrame
-            - rank_indices (numpy.ndarray): 排除电极后的索引，可用于重新排列原始矩阵
+        tuple:
+            - df_original (pd.DataFrame): DataFrame sorted by strength, with index being sorted indices.
+            - df_ranked (pd.DataFrame): DataFrame sorted by strength, with column 'OriginalIndex' showing original position.
+            - sorted_indices (np.ndarray): Sorted indices (after exclusion) relative to the original list.
     """
-    import numpy as np
-    import pandas as pd
+    if len(electrode_labels) != len(node_strengths):
+        raise ValueError(f"Length mismatch: {len(electrode_labels)} electrode labels vs {len(node_strengths)} strengths.")
 
-    if fc_matrix.ndim == 3:
-        mean_values = np.mean(np.mean(fc_matrix, axis=0), axis=0)
-    elif fc_matrix.ndim == 2:
-        mean_values = np.mean(fc_matrix, axis=0)
-    else:
-        raise ValueError(f"输入矩阵维度应为2或3，但得到的是{fc_matrix.ndim}")
+    electrode_labels = list(electrode_labels)
 
-    if len(electrodes) != len(mean_values):
-        raise ValueError(f"电极数量({len(electrodes)})与连接矩阵节点数({len(mean_values)})不匹配")
+    # Create full unsorted DataFrame
+    df_unsorted = pd.DataFrame({
+        'Electrode': electrode_labels,
+        'Strength': node_strengths,
+    })
+    
+    df_original = pd.DataFrame({
+        'OriginalIndex': df_unsorted.index,
+        'Electrode': electrode_labels,
+        'Strength': node_strengths,
+    })
+    
+    # Perform sorting
+    sorted_df = df_unsorted.sort_values(by='Strength', ascending=ascending).reset_index()
+    
+    # sorted_df.index → sorted rank
+    # sorted_df['index'] → original index
+    sorted_df.rename(columns={'index': 'OriginalIndex'}, inplace=True)
 
-    # 确保 electrodes 是列表
-    electrodes = list(electrodes)
-
-    # 创建原始 DataFrame
-    column_name = "mean"
-    df_original = pd.DataFrame({'electrodes': electrodes, column_name: mean_values})
-
-    # 排序
-    df_ranked = df_original.sort_values(column_name, ascending=ascending).reset_index(drop=True)
-
-    # 在排序后排除指定电极
+    # Optional exclusion
     if exclude_electrodes is not None:
-        df_ranked = df_ranked[~df_ranked['electrodes'].isin(exclude_electrodes)].reset_index(drop=True)
-
-    # 重新获取排序后电极在原始 electrodes 中的索引
-    rank_indices = np.array([electrodes.index(e) for e in df_ranked['electrodes']])
-
-    # 绘图
-    if draw:
-        try:
-            import matplotlib.pyplot as plt
-            import seaborn as sns
-
-            # 排除电极后的均值
-            heat_values = df_ranked[column_name].values
-            heat_labels = df_ranked['electrodes'].values
-
-            plt.figure(figsize=(10, 2))
-            sns.heatmap([heat_values], cmap='viridis',
-                        xticklabels=heat_labels, yticklabels=False)
-            plt.title(f"sorted {feature_name} average connection strength\n(excluded: {exclude_electrodes})")
-            plt.tight_layout()
-            plt.show()
-
-        except ImportError:
-            print("Error in drawing heatmap: matplotlib or seaborn not installed.")
-        except Exception as e:
-            print(f"Error in drawing heatmap: {str(e)}")
-
-    return mean_values, df_original, df_ranked, rank_indices
-
-def rank_and_visualize_fc_network_(fc_matrix, electrodes, feature_name='feature', ascending=False, draw=True):
-    """
-    对功能连接(FC)网络进行排序并可视化。
-
-    Args:
-        fc_matrix (numpy.ndarray): 功能连接矩阵，形状为 (n, n) 或 (m, n, n)
-        electrodes (list): 电极标签列表
-        feature_name (str, optional): 特征名称，用于DataFrame列名。默认为'feature'
-        ascending (bool, optional): 排序顺序，True为升序，False为降序。默认为False
-        draw (bool, optional): 是否绘制热图。默认为True
-
-    Returns:
-        tuple: 包含以下元素:
-            - mean_values (numpy.ndarray): 每个节点的平均连接强度
-            - df_original (pandas.DataFrame): 包含电极和平均值的原始DataFrame
-            - df_ranked (pandas.DataFrame): 按平均值排序后的DataFrame
-            - rank_indices (numpy.ndarray): 排序后的索引，可用于重新排列原始矩阵
-    """
-    # 判断输入维度，处理3D和2D矩阵
-    if fc_matrix.ndim == 3:
-        # 3D矩阵，计算每个节点的平均值
-        mean_values = np.mean(np.mean(fc_matrix, axis=0), axis=0)
-    elif fc_matrix.ndim == 2:
-        # 2D矩阵，直接计算每个节点的平均值
-        mean_values = np.mean(fc_matrix, axis=0)
+        df_ranked = sorted_df[~sorted_df['Electrode'].isin(exclude_electrodes)].reset_index(drop=True)
     else:
-        raise ValueError(f"输入矩阵维度应为2或3，但得到的是{fc_matrix.ndim}")
+        df_ranked = sorted_df.copy()
 
-    # 确保电极列表长度与矩阵节点数匹配
-    if len(electrodes) != len(mean_values):
-        raise ValueError(f"电极数量({len(electrodes)})与连接矩阵节点数({len(mean_values)})不匹配")
+    # Sorted indices (for matrix reordering)
+    sorted_indices = df_ranked['OriginalIndex'].values
 
-    # 创建包含电极和平均值的DataFrame
-    column_name = f"mean"
-    df_original = pd.DataFrame({'electrodes': electrodes, column_name: mean_values})
-
-    # 按均值排序
-    df_ranked = df_original.sort_values(column_name, ascending=ascending)
-
-    # 获取排序后的索引，可用于重排原始矩阵
-    rank_indices = np.array([list(electrodes).index(e) for e in df_ranked['electrodes']])
-
-    # 绘制热图
-    if draw:
-        try:
-            import matplotlib.pyplot as plt
-            import seaborn as sns
-
-            # 绘制原始热图
-            plt.figure(figsize=(10, 2))
-            sns.heatmap([mean_values], cmap='viridis',
-                        xticklabels=electrodes, yticklabels=False)
-            plt.title(f"original {feature_name} average connection strength")
-            plt.tight_layout()
-            plt.show()
-
-            # 绘制排序后的热图
-            plt.figure(figsize=(10, 2))
-            sns.heatmap([df_ranked[column_name]], cmap='viridis',
-                        xticklabels=df_ranked['electrodes'], yticklabels=False)
-            plt.title(f"sorted {feature_name} average connection strength")
-            plt.tight_layout()
-            plt.show()
-
-        except ImportError:
-            print("Error in drawing heatmap：uninstalled of matplotlib or seaborn")
-
-        except Exception as e:
-            print(f"Error in drawing heatmap：{str(e)}")
-
-    return mean_values, df_original, df_ranked, rank_indices
+    return df_original, df_ranked, sorted_indices
 
 def compute_volume_conduction_factors(distance_matrix, method='exponential', params=None):
     """
@@ -491,127 +356,6 @@ def compute_volume_conduction_factors(distance_matrix, method='exponential', par
     np.fill_diagonal(factor_matrix, 1.0)
     return factor_matrix
 
-def compute_volume_conduction_factors_(distance_matrix, method='exponential', params=None):
-    """
-    基于距离矩阵计算体积电导效应的因子矩阵。
-    
-    Args:
-        distance_matrix (numpy.ndarray): 电极间的距离矩阵，形状为 (n, n)
-        method (str, optional): 体积电导效应建模方法。默认为'exponential'。
-            - 'exponential': f(d) = exp(-d/sigma)，距离越近，影响越大
-            - 'gaussian': f(d) = exp(-d²/sigma²)，高斯衰减模型
-            - 'inverse': f(d) = 1/(1 + (d/sigma)^alpha)，反比例衰减模型
-            - 'cutoff': 如果距离小于阈值，则使用固定因子，否则为0
-        params (dict, optional): 建模参数，默认为None，使用默认参数。
-            - 'exponential'需要参数'sigma'，控制衰减率
-            - 'gaussian'需要参数'sigma'，控制高斯分布宽度
-            - 'inverse'需要参数'sigma'和'alpha'，控制衰减率和衰减形状
-            - 'cutoff'需要参数'threshold'和'factor'，分别指定截断距离和固定因子值
-    
-    Returns:
-        numpy.ndarray: 体积电导效应因子矩阵，形状与输入距离矩阵相同，对角线元素为1
-    """
-    import numpy as np
-    
-    # 确保输入是numpy数组
-    distance_matrix = np.asarray(distance_matrix)
-    n = distance_matrix.shape[0]
-    
-    # 设置默认参数
-    default_params = {
-        'exponential': {'sigma': 10.0},
-        'gaussian': {'sigma': 5.0},
-        'inverse': {'sigma': 5.0, 'alpha': 2.0},
-        'cutoff': {'threshold': 5.0, 'factor': 0.5}
-    }
-    
-    # 如果提供了参数，更新默认参数
-    if params is None:
-        if method in default_params:
-            params = default_params[method]
-        else:
-            raise ValueError(f"未提供参数，且方法 '{method}' 没有默认参数")
-    elif method in default_params:
-        # 只更新提供的参数，保留其他默认参数
-        method_params = default_params[method].copy()
-        method_params.update(params)
-        params = method_params
-            
-    # 创建因子矩阵
-    factor_matrix = np.zeros_like(distance_matrix)
-    
-    # 根据选择的方法计算因子
-    if method == 'exponential':
-        sigma = params['sigma']
-        # 指数衰减模型: exp(-d/sigma)
-        factor_matrix = np.exp(-distance_matrix / sigma)
-        
-    elif method == 'gaussian':
-        sigma = params['sigma']
-        # 高斯衰减模型: exp(-d²/sigma²)
-        factor_matrix = np.exp(-(distance_matrix**2) / (sigma**2))
-        
-    elif method == 'inverse':
-        sigma = params['sigma']
-        alpha = params['alpha']
-        # 反比例衰减模型: 1/(1 + (d/sigma)^alpha)
-        factor_matrix = 1.0 / (1.0 + (distance_matrix / sigma)**alpha)
-        
-    elif method == 'cutoff':
-        threshold = params['threshold']
-        factor = params['factor']
-        # 截断模型: 如果距离小于阈值，则为固定因子，否则为0
-        factor_matrix = np.where(distance_matrix < threshold, factor, 0.0)
-        
-    else:
-        raise ValueError(f"不支持的体积电导建模方法: {method}")
-    
-    # 设置对角线元素为1（自身对自身的影响为1）
-    np.fill_diagonal(factor_matrix, 1.0)
-    
-    return factor_matrix
-
-import matplotlib.pyplot as plt
-def draw_weight_mapping(ranking, ranked_values, ranked_electrodes=None, offset=0, transformation=None, reverse=False):
-    weight_mean = ranked_values
-    if reverse:
-        weight_mean = 1 - weight_mean
-    distribution = utils_feature_loading.read_distribution('seed')
-    
-    dis_t = distribution.iloc[ranking]
-    
-    x = np.array(dis_t['x'])
-    y = np.array(dis_t['y'])
-    electrodes = dis_t['channel']
-    
-    # 归一化 label_driven_mi_mean 以适应颜色显示（假设它是数值列表）
-    if transformation == 'log':
-        values = np.array(np.log(weight_mean) + offset)
-    else: 
-        values = np.array(weight_mean + offset)
-    
-    # 绘制散点图
-    plt.figure(figsize=(8, 6))
-    sc = plt.scatter(x, y, c=values, cmap='coolwarm', s=100, edgecolors='k')
-    
-    # 添加颜色条
-    cbar = plt.colorbar(sc)
-    cbar.set_label('Label Driven MI Mean')
-    
-    # 标注电极通道名称
-    for i, txt in enumerate(electrodes):
-        plt.text(x[i], y[i], txt, fontsize=9, ha='right', va='bottom')
-    
-    # 设置标题和坐标轴
-    plt.title("Label Driven MI Mean Distribution on Electrodes")
-    plt.xlabel("X Coordinate")
-    plt.ylabel("Y Coordinate")
-    plt.grid(True, linestyle="--", alpha=0.5)
-    
-    plt.show()
-    
-    return weight_mean
-
 if __name__ == '__main__':
     # %% Load Distance Matrix
     # dm_pcc_alpha, dm_pcc_beta, dm_pcc_gamma, dm_pcc_joint = load_global_averages(feature='PCC')
@@ -648,31 +392,40 @@ if __name__ == '__main__':
     
     # %% Matrix of differ(Connectivity_Matrix_PCC, Factor_Matrix); stereo distance matrix; generalized_gaussian
     # Target
-    import channel_selection_weight_mapping
-    channel_selection_weight_mapping.draw_weight_mapping(ranking_method='label_driven_mi')
+    import weight_map_drawer
+    weight_map_drawer.draw_weight_map_from_file(ranking_method='label_driven_mi')
     
     # Fitted
     channel_names, distance_matrix = compute_distance_matrix('seed', method='stereo')
-    distance_matrix = normalize_matrix(distance_matrix)
-    # utils_visualization.draw_projection(distance_matrix)
+    distance_matrix = featrue_engineering.normalize_matrix(distance_matrix)
+    utils_visualization.draw_projection(distance_matrix)
 
     factor_matrix = compute_volume_conduction_factors(distance_matrix, method='generalized_gaussian', params={'sigma': 2.27, 'beta': 5.0})
-    factor_matrix = normalize_matrix(factor_matrix)
-    # utils_visualization.draw_projection(factor_matrix)
+    factor_matrix = featrue_engineering.normalize_matrix(factor_matrix)
+    utils_visualization.draw_projection(factor_matrix)
 
     _, _, _, global_joint_average = load_global_averages(feature='PCC')
-    global_joint_average = normalize_matrix(global_joint_average)
-    # utils_visualization.draw_projection(global_joint_average)
+    global_joint_average = featrue_engineering.normalize_matrix(global_joint_average)
+    utils_visualization.draw_projection(global_joint_average)
 
     differ_PCC_DM = global_joint_average - factor_matrix
-    # utils_visualization.draw_projection(differ_PCC_DM)
-
+    utils_visualization.draw_projection(differ_PCC_DM)
+    
+    # transform from Matrix to Rank
+    weight_fitted = np.mean(differ_PCC_DM, axis=0)
+    from sklearn.preprocessing import MinMaxScaler
+    weight_fitted = MinMaxScaler().fit_transform(weight_fitted.reshape(-1, 1)).flatten()
+    from scipy.stats import boxcox
+    weight_fitted = weight_fitted + 1e-6
+    weight_fitted, _ = boxcox(weight_fitted)
+    
+    # Visualiztion
     # get electrodes
     distribution = utils_feature_loading.read_distribution('seed')
     electrodes = distribution['channel']
-
-    # **********************REVISE HERE
-    _, _, df_ranked, rank_indices = rank_and_visualize_fc_network(differ_PCC_DM, electrodes, feature_name='PCC') #, exclude_electrodes=['CB1', 'CB2'])
-    # **********************************
-
-    draw_weight_mapping(rank_indices, df_ranked['mean'])
+    
+    # resort
+    weight_channels = np.mean(differ_PCC_DM, axis=0)
+    strength_origin, strength_ranked, rank_indices = rank_and_visualize_fc_strength(weight_fitted, electrodes, feature_name='PCC') #, exclude_electrodes=['CB1', 'CB2'])
+    
+    weight_map_drawer.draw_weight_map_from_data(rank_indices, strength_ranked['Strength'])

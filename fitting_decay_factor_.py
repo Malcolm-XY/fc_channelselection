@@ -1,138 +1,126 @@
 # -*- coding: utf-8 -*-
 """
-Created on Tue Mar 25 15:15:50 2025
+Created on Wed Mar 26 17:30:25 2025
 
 @author: usouu
 """
+
 import numpy as np
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import boxcox
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
+from functools import partial
 
-import fc_computer
-from channel_selection_weight_mapping import draw_weight_mapping
+import featrue_engineering
+import feature_transformation
+import weight_map_drawer
+
+def apply_transform(x, method):
+    x = x + 1e-6  # avoid log(0) or boxcox(0)
+    if method == 'boxcox':
+        x, _ = boxcox(x)
+    elif method == 'sqrt':
+        x = np.sqrt(x)
+    elif method == 'log':
+        x = np.log(x)
+    elif method == 'none':
+        pass
+    else:
+        raise ValueError(f"Unsupported transform_method: {method}")
+    return x
+
+# def normalize_data(x, method):
+#     if method == 'minmax':
+#         return MinMaxScaler().fit_transform(x.reshape(-1, 1)).flatten()
+#     elif method == 'zscore':
+#         return StandardScaler().fit_transform(x.reshape(-1, 1)).flatten()
+#     elif method == 'none':
+#         return x.copy()
+#     else:
+#         raise ValueError(f"Unsupported normalize_method: {method}")
+
+def preprocessing_r_target(r, normalize_method, transform_method):
+    r = featrue_engineering.normalize_matrix(r, normalize_method)
+    r = apply_transform(r, transform_method)
+
+    return r
+
+def preprocessing_r_fitting(r, normalize_method, transform_method, r_target, mean_align_method):
+    r = featrue_engineering.normalize_matrix(r, normalize_method)
+    r = apply_transform(r, transform_method)
+
+    if mean_align_method == 'match_mean':
+        delta = np.mean(r_target) - np.mean(r)
+        r += delta
+
+    return r
 
 def prepare_target_and_inputs(
     feature='PCC',
     ranking_method='label_driven_mi_origin',
     distance_method='euclidean',
-    normalize_method='minmax', 
-    transform_method='boxcox',    
+    normalize_method='minmax',
+    transform_method='boxcox',
     mean_align_method='match_mean',
 ):
-    def apply_transform(x):
-        x = x + 1e-6  # avoid log(0) or boxcox(0)
-        if transform_method == 'boxcox':
-            x, _ = boxcox(x)
-        elif transform_method == 'sqrt':
-            x = np.sqrt(x)
-        elif transform_method == 'log':
-            x = np.log(x)
-        elif transform_method == 'none':
-            pass
-        else:
-            raise ValueError(f"Unsupported transform_method: {transform_method}")
-        return x
+    weight_mean, index = draw_weight_mapping(ranking_method=ranking_method)   
+    r_target = preprocessing_r_target(weight_mean.to_numpy(), normalize_method, transform_method)
 
-    weight_mean, index = draw_weight_mapping(ranking_method=ranking_method)
+    _, distance_matrix = feature_transformation.compute_distance_matrix('seed', method=distance_method)
+    distance_matrix = featrue_engineering.normalize_matrix(distance_matrix)
 
-    if normalize_method == 'minmax':
-        r_target = MinMaxScaler().fit_transform(weight_mean.to_numpy().reshape(-1, 1)).flatten()
-    elif normalize_method == 'zscore':
-        r_target = StandardScaler().fit_transform(weight_mean.to_numpy().reshape(-1, 1)).flatten()
-    elif normalize_method == 'none':
-        r_target = weight_mean.to_numpy()
-    else:
-        raise ValueError(f"Unsupported normalize_method: {normalize_method}")
+    _, _, _, global_joint_average = feature_transformation.load_global_averages(feature=feature)
+    connectivity_matrix = featrue_engineering.normalize_matrix(global_joint_average)
 
-    r_target = apply_transform(r_target)
-    r_target_mean = np.mean(r_target)
-
-    _, distance_matrix = fc_computer.compute_distance_matrix('seed', method=distance_method)
-    distance_matrix = fc_computer.normalize_matrix(distance_matrix)
-
-    _, _, _, global_joint_average = fc_computer.load_global_averages(feature=feature)
-    connectivity_matrix = fc_computer.normalize_matrix(global_joint_average)
-
-    def preprocessing_fn(r_fitting):
-        if normalize_method == 'minmax':
-            r_fitting = MinMaxScaler().fit_transform(r_fitting.reshape(-1, 1)).flatten()
-        elif normalize_method == 'zscore':
-            r_fitting = StandardScaler().fit_transform(r_fitting.reshape(-1, 1)).flatten()
-        elif normalize_method == 'none':
-            r_fitting = r_fitting.copy()
-        else:
-            raise ValueError(f"Unsupported normalize_method: {normalize_method}")
-
-        r_fitting = apply_transform(r_fitting)
-
-        if mean_align_method == 'match_mean':
-            delta = r_target_mean - np.mean(r_fitting)
-            r_fitting += delta
-
-        return r_fitting
-
-    return r_target, r_target_mean, distance_matrix, connectivity_matrix, preprocessing_fn
-
-def compute_r_fitting(method, params_dict):
-    factor_matrix = fc_computer.compute_volume_conduction_factors(
-        distance_matrix, method=method, params=params_dict
+    preprocessing_fn = partial(
+        preprocessing_r_fitting,
+        normalize_method=normalize_method,
+        transform_method=transform_method,
+        r_target=r_target,
+        mean_align_method=mean_align_method
     )
-    factor_matrix = fc_computer.normalize_matrix(factor_matrix)
-    differ_PCC_DM = connectivity_matrix - factor_matrix
-    differ_PCC_DM = fc_computer.normalize_matrix(differ_PCC_DM)
-    r_fitting = np.mean(differ_PCC_DM, axis=0)
-    r_fitting = fc_computer.normalize_matrix(r_fitting)
-    r_fitting = preprocessing_fn(r_fitting)
-    return r_fitting
 
-def optimize_and_store(name, loss_fn, x0, bounds, param_keys):
+    return r_target, distance_matrix, connectivity_matrix, preprocessing_fn
+
+def compute_r_fitting(method, params_dict, distance_matrix, connectivity_matrix, preprocessing_fn):
+    factor_matrix = feature_transformation.compute_volume_conduction_factors(distance_matrix, method=method, params=params_dict)
+    factor_matrix = featrue_engineering.normalize_matrix(factor_matrix)
+    differ_PCC_DM = featrue_engineering.normalize_matrix(connectivity_matrix - factor_matrix)
+    r_fitting = np.mean(differ_PCC_DM, axis=0)
+    r_fitting = featrue_engineering.normalize_matrix(r_fitting)
+    return preprocessing_fn(r_fitting)
+
+def optimize_and_store(name, loss_fn, x0, bounds, param_keys, distance_matrix, connectivity_matrix, preprocessing_fn):
     res = minimize(loss_fn, x0=x0, bounds=bounds)
     params = dict(zip(param_keys, res.x))
     results[name] = {'params': params, 'loss': res.fun}
-    fittings[name] = compute_r_fitting(name, params)
+    fittings[name] = compute_r_fitting(name, params, distance_matrix, connectivity_matrix, preprocessing_fn)
 
-def loss_exponential(params):
-    return np.mean((compute_r_fitting('exponential', {'sigma': params[0]}) - r_target) ** 2)
-
-def loss_gaussian(params):
-    return np.mean((compute_r_fitting('gaussian', {'sigma': params[0]}) - r_target) ** 2)
-
-def loss_inverse(params):
-    return np.mean((compute_r_fitting('inverse', {'sigma': params[0], 'alpha': params[1]}) - r_target) ** 2)
-
-def loss_powerlaw(params):
-    return np.mean((compute_r_fitting('powerlaw', {'alpha': params[0]}) - r_target) ** 2)
-
-def loss_rational_quadratic(params):
-    return np.mean((compute_r_fitting('rational_quadratic', {'sigma': params[0], 'alpha': params[1]}) - r_target) ** 2)
-
-def loss_generalized_gaussian(params):
-    return np.mean((compute_r_fitting('generalized_gaussian', {'sigma': params[0], 'beta': params[1]}) - r_target) ** 2)
-
-def loss_sigmoid(params):
-    return np.mean((compute_r_fitting('sigmoid', {'mu': params[0], 'beta': params[1]}) - r_target) ** 2)
+def loss_fn_template(method_name, param_dict_fn, r_target, distance_matrix, connectivity_matrix, preprocessing_fn):
+    def loss(params):
+        return np.mean((compute_r_fitting(method_name, param_dict_fn(params), distance_matrix, connectivity_matrix, preprocessing_fn) - r_target) ** 2)
+    return loss
 
 if __name__ == '__main__':
     results = {}
     fittings = {}
 
-    r_target, r_target_mean, distance_matrix, connectivity_matrix, preprocessing_fn = prepare_target_and_inputs(
+    r_target, distance_matrix, connectivity_matrix, preprocessing_fn = prepare_target_and_inputs(
         feature='PCC',
         ranking_method='label_driven_mi_origin',
         distance_method='stereo',
         transform_method='boxcox',
     )
 
-    optimize_and_store('exponential', loss_exponential, x0=[2.0], bounds=[(0.1, 20.0)], param_keys=['sigma'])
-    optimize_and_store('gaussian', loss_gaussian, x0=[2.0], bounds=[(0.1, 20.0)], param_keys=['sigma'])
-    optimize_and_store('inverse', loss_inverse, x0=[2.0, 2.0], bounds=[(0.1, 20.0), (0.1, 5.0)], param_keys=['sigma', 'alpha'])
-    optimize_and_store('powerlaw', loss_powerlaw, x0=[2.0], bounds=[(0.1, 10.0)], param_keys=['alpha'])
-    optimize_and_store('rational_quadratic', loss_rational_quadratic, x0=[2.0, 1.0], bounds=[(0.1, 20.0), (0.1, 10.0)], param_keys=['sigma', 'alpha'])
-    optimize_and_store('generalized_gaussian', loss_generalized_gaussian, x0=[2.0, 1.0], bounds=[(0.1, 20.0), (0.1, 5.0)], param_keys=['sigma', 'beta'])
-    optimize_and_store('sigmoid', loss_sigmoid, x0=[2.0, 1.0], bounds=[(0.1, 10.0), (0.1, 5.0)], param_keys=['mu', 'beta'])
+    optimize_and_store('exponential', loss_fn_template('exponential', lambda p: {'sigma': p[0]}, r_target, distance_matrix, connectivity_matrix, preprocessing_fn), [2.0], [(0.1, 20.0)], ['sigma'], distance_matrix, connectivity_matrix, preprocessing_fn)
+    optimize_and_store('gaussian', loss_fn_template('gaussian', lambda p: {'sigma': p[0]}, r_target, distance_matrix, connectivity_matrix, preprocessing_fn), [2.0], [(0.1, 20.0)], ['sigma'], distance_matrix, connectivity_matrix, preprocessing_fn)
+    optimize_and_store('inverse', loss_fn_template('inverse', lambda p: {'sigma': p[0], 'alpha': p[1]}, r_target, distance_matrix, connectivity_matrix, preprocessing_fn), [2.0, 2.0], [(0.1, 20.0), (0.1, 5.0)], ['sigma', 'alpha'], distance_matrix, connectivity_matrix, preprocessing_fn)
+    optimize_and_store('powerlaw', loss_fn_template('powerlaw', lambda p: {'alpha': p[0]}, r_target, distance_matrix, connectivity_matrix, preprocessing_fn), [2.0], [(0.1, 10.0)], ['alpha'], distance_matrix, connectivity_matrix, preprocessing_fn)
+    optimize_and_store('rational_quadratic', loss_fn_template('rational_quadratic', lambda p: {'sigma': p[0], 'alpha': p[1]}, r_target, distance_matrix, connectivity_matrix, preprocessing_fn), [2.0, 1.0], [(0.1, 20.0), (0.1, 10.0)], ['sigma', 'alpha'], distance_matrix, connectivity_matrix, preprocessing_fn)
+    optimize_and_store('generalized_gaussian', loss_fn_template('generalized_gaussian', lambda p: {'sigma': p[0], 'beta': p[1]}, r_target, distance_matrix, connectivity_matrix, preprocessing_fn), [2.0, 1.0], [(0.1, 20.0), (0.1, 5.0)], ['sigma', 'beta'], distance_matrix, connectivity_matrix, preprocessing_fn)
+    optimize_and_store('sigmoid', loss_fn_template('sigmoid', lambda p: {'mu': p[0], 'beta': p[1]}, r_target, distance_matrix, connectivity_matrix, preprocessing_fn), [2.0, 1.0], [(0.1, 10.0), (0.1, 5.0)], ['mu', 'beta'], distance_matrix, connectivity_matrix, preprocessing_fn)
 
     print("=== Fitting Results of All Models (Minimum MSE) ===")
     for method, result in results.items():
@@ -155,14 +143,9 @@ if __name__ == '__main__':
     plt.suptitle("Fitting Comparison of Channel Importance across Models", fontsize=18, y=1.02)
     plt.show()
 
-    plt.figure(figsize=(12, 6))
-    bar_width = 0.1
-    x = np.arange(len(r_target))
-    
-    # Heatmap visualization
     heatmap_data = np.vstack([r_target] + [fittings[method] for method in fittings.keys()])
     heatmap_labels = ['target'] + list(fittings.keys())
-    
+
     plt.figure(figsize=(14, 6))
     sns.heatmap(heatmap_data, cmap='viridis', cbar=True, xticklabels=False, yticklabels=heatmap_labels, linewidths=0.5, linecolor='gray')
     plt.title("Heatmap of r_target and All r_fitting Vectors")
@@ -170,3 +153,22 @@ if __name__ == '__main__':
     plt.ylabel("Model")
     plt.tight_layout()
     plt.show()
+    
+    # %% Validation
+    from utils import utils_feature_loading
+    electrodes = utils_feature_loading.read_distribution('seed')['channel']    
+    # target
+    r_target_ = r_target.copy()
+    _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_target_, electrodes)
+    feature_transformation.draw_weight_rank_mapping(in_original_indices, strength_ranked['Strength'])
+    
+    # non-fitted
+    _,_,_,r_non_fitted = feature_transformation.load_global_averages(feature='PCC')
+    r_non_fitted = np.mean(r_non_fitted, axis=0)
+    _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_non_fitted, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
+    feature_transformation.draw_weight_rank_mapping(in_original_indices, strength_ranked['Strength'])
+    
+    # fitted
+    r_fitted_g_gaussian = fittings['generalized_gaussian']
+    _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_fitted_g_gaussian, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
+    feature_transformation.draw_weight_rank_mapping(in_original_indices, strength_ranked['Strength'])

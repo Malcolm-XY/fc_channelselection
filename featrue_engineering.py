@@ -891,6 +891,59 @@ def global_padding(matrix, width=81, verbose=True):
 
     return padded_matrix
 
+# %% Normalize
+def normalize_matrix(matrix, method='minmax'):
+    """
+    对矩阵进行归一化处理。
+
+    Args:
+        matrix (numpy.ndarray): 要归一化的矩阵或数组
+        method (str, optional): 归一化方法，可选值为'minmax'、'max'、'mean'、'z-score'。默认为'minmax'。
+            - 'minmax': (x - min) / (max - min)，将值归一化到[0,1]区间
+            - 'max': x / max，将最大值归一化为1
+            - 'mean': x / mean，相对于平均值进行归一化
+            - 'z-score': (x - mean) / std，标准化为均值0，标准差1
+
+    Returns:
+        numpy.ndarray: 归一化后的矩阵
+
+    Raises:
+        ValueError: 当提供的归一化方法不受支持时
+    """
+    # 创建输入矩阵的副本，避免修改原始数据
+    normalized = matrix.copy()
+
+    if method == 'minmax':
+        # Min-Max归一化：将值归一化到[0,1]区间
+        min_val = np.min(normalized)
+        max_val = np.max(normalized)
+        if max_val > min_val:  # 避免除以零
+            normalized = (normalized - min_val) / (max_val - min_val)
+
+    elif method == 'max':
+        # 最大值归一化：将值归一化到[0,1]区间，最大值为1
+        max_val = np.max(normalized)
+        if max_val > 0:  # 避免除以零
+            normalized = normalized / max_val
+
+    elif method == 'mean':
+        # 均值归一化：相对于平均值进行归一化
+        mean_val = np.mean(normalized)
+        if mean_val > 0:  # 避免除以零
+            normalized = normalized / mean_val
+
+    elif method == 'z-score':
+        # Z-score标准化：将均值归一化为0，标准差归一化为1
+        mean_val = np.mean(normalized)
+        std_val = np.std(normalized)
+        if std_val > 0:  # 避免除以零
+            normalized = (normalized - mean_val) / std_val
+
+    else:
+        raise ValueError(f"不支持的归一化方法: {method}，可选值为'minmax'、'max'、'mean'或'z-score'")
+
+    return normalized
+
 # %% Example usage
 if __name__ == "__main__":
     # %% Filter EEG
