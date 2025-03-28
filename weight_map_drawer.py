@@ -118,7 +118,6 @@ def draw_weight_map_from_data(ranking, ranked_values, ranked_electrodes=None, of
     
     return weight_mean
     
-
 if __name__ == '__main__':    
     weight_mean, index = draw_weight_map_from_file(ranking_method='label_driven_mi')
     # draw_weight_mapping(transformation=None, ranking_method='data_driven_mi')

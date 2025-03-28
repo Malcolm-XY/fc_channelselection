@@ -357,75 +357,106 @@ def compute_volume_conduction_factors(distance_matrix, method='exponential', par
     return factor_matrix
 
 if __name__ == '__main__':
-    # %% Load Distance Matrix
-    # dm_pcc_alpha, dm_pcc_beta, dm_pcc_gamma, dm_pcc_joint = load_global_averages(feature='PCC')
-    # dm_plv_alpha, dm_plv_beta, dm_plv_gamma, dm_plv_joint = load_global_averages(feature='PLV')
-
-    # %% Distance Matrix of Euclidean
-    # channel_names, distance_matrix = compute_distance_matrix('seed')
-    # utils_visualization.draw_projection(distance_matrix)
-
-    # channel_names, distance_matrix_ste = compute_distance_matrix('seed', method='stereo')
-    # utils_visualization.draw_projection(distance_matrix_ste)
-
-    # %% Factor Matrix
-    # factor_matrix = compute_volume_conduction_factors(distance_matrix)
-    # utils_visualization.draw_projection(factor_matrix)
+    # %% Load Connectivity Matrix
+    cm_pcc_alpha, cm_pcc_beta, cm_pcc_gamma, cm_pcc_joint = load_global_averages(feature='PCC')
+    cm_pcc_joint = featrue_engineering.normalize_matrix(cm_pcc_joint)
+    utils_visualization.draw_projection(cm_pcc_joint)
     
-    # factor_matrix_ste = compute_volume_conduction_factors(distance_matrix_ste)
-    # utils_visualization.draw_projection(factor_matrix_ste)
+    cm_pcc_alpha, cm_pcc_beta, cm_pcc_gamma, cm_pcc_joint = load_global_averages(feature='PLV')
+    cm_pcc_joint = featrue_engineering.normalize_matrix(cm_pcc_joint)
+    utils_visualization.draw_projection(cm_pcc_joint)
 
-    # %% Distance Matrix of PCC
-    # # global_alpha_average, global_beta_average, global_gamma_average, global_joint_average = compute_averaged_fcnetwork('PCC', subjects=range(1, 16), draw=True, save=True)
-    # global_alpha_average, global_beta_average, global_gamma_average, global_joint_average = load_global_averages(
-    #     feature='PCC')
-
-    # joint = global_joint_average
-    # joint_mean_1d = np.mean(joint, axis=0)
-
-    # # get electrodes
-    # distribution = utils_feature_loading.read_distribution('seed')
-    # electrodes = distribution['channel']
-
-    # mean_values, df_original, df_ranked, rank_indices = rank_and_visualize_fc_network(global_joint_average, electrodes,
-    #                                                                                   feature_name='PCC')
-    
-    # %% Matrix of differ(Connectivity_Matrix_PCC, Factor_Matrix); stereo distance matrix; generalized_gaussian
-    # Target
-    import weight_map_drawer
-    weight_map_drawer.draw_weight_map_from_file(ranking_method='label_driven_mi')
-    
-    # Fitted
-    channel_names, distance_matrix = compute_distance_matrix('seed', method='stereo')
+    # %% Distance Matrix
+    channel_names, distance_matrix = compute_distance_matrix('seed')
     distance_matrix = featrue_engineering.normalize_matrix(distance_matrix)
     utils_visualization.draw_projection(distance_matrix)
 
-    factor_matrix = compute_volume_conduction_factors(distance_matrix, method='generalized_gaussian', params={'sigma': 2.27, 'beta': 5.0})
+    channel_names, distance_matrix_ste = compute_distance_matrix('seed', method='stereo')
+    distance_matrix_ste = featrue_engineering.normalize_matrix(distance_matrix_ste)
+    utils_visualization.draw_projection(distance_matrix_ste)
+    
+    # %% Reversed Distance Matrix
+    distance_matrix_r =  1 - distance_matrix
+    utils_visualization.draw_projection(distance_matrix_r)
+    
+    distance_matrix_ste_r =  1 - distance_matrix_ste
+    utils_visualization.draw_projection(distance_matrix_ste_r)
+    
+    # %% Similarity
+    from sklearn.metrics.pairwise import cosine_similarity
+    def cosine_sim(A, B):
+        return cosine_similarity(A.flatten().reshape(1, -1), B.flatten().reshape(1, -1))[0][0]
+
+    similarity_cosine_euclidean = cosine_sim(distance_matrix_r, cm_pcc_joint)
+    print(f"The Cosine Similarity Between Euclidean Distance Matrix and Connectivity Matrix is: {similarity_cosine_euclidean}")
+    similarity_cosine_stereo = cosine_sim(distance_matrix_ste_r, cm_pcc_joint)
+    print(f"The Cosine Similarity Between Stereo Distance Matrix and Connectivity Matrix is: {similarity_cosine_stereo}")
+    
+    from skimage.metrics import structural_similarity as ssim
+    similarity_ssim_euclidean = ssim(distance_matrix_r, cm_pcc_joint, data_range=1.0)
+    print(f"The SSIM Similarity Between Euclidean Distance Matrix and Connectivity Matrix is: {similarity_ssim_euclidean}")
+    similarity_ssim_ste = ssim(distance_matrix_ste_r, cm_pcc_joint, data_range=1.0)
+    print(f"The SSIM Similarity Between Stereo Distance Matrix and Connectivity Matrix is: {similarity_ssim_ste}")
+
+    def pearson_corr(A, B):
+        return np.corrcoef(A.flatten(), B.flatten())[0, 1]
+    similarity_corr_euclidean = pearson_corr(distance_matrix_r, cm_pcc_joint)
+    print(f"The Correlation Similarity Between Euclidean Distance Matrix and Connectivity Matrix is: {similarity_corr_euclidean}")
+    similarity_corr_ste = pearson_corr(distance_matrix_ste_r, cm_pcc_joint)
+    print(f"The Correlation Similarity Between Stereo Distance Matrix and Connectivity Matrix is: {similarity_corr_ste}")
+    
+    # %% Factor Matrix
+    factor_matrix = compute_volume_conduction_factors(distance_matrix)
     factor_matrix = featrue_engineering.normalize_matrix(factor_matrix)
     utils_visualization.draw_projection(factor_matrix)
+    
+    factor_matrix_ste = compute_volume_conduction_factors(distance_matrix_ste)
+    factor_matrix_ste = featrue_engineering.normalize_matrix(factor_matrix_ste)
+    utils_visualization.draw_projection(factor_matrix_ste)
 
-    _, _, _, global_joint_average = load_global_averages(feature='PCC')
-    global_joint_average = featrue_engineering.normalize_matrix(global_joint_average)
-    utils_visualization.draw_projection(global_joint_average)
-
-    differ_PCC_DM = global_joint_average - factor_matrix
+    # %% Genuine Connectivity Matrix
+    differ_PCC_DM = cm_pcc_joint - factor_matrix
     utils_visualization.draw_projection(differ_PCC_DM)
     
-    # transform from Matrix to Rank
-    weight_fitted = np.mean(differ_PCC_DM, axis=0)
-    from sklearn.preprocessing import MinMaxScaler
-    weight_fitted = MinMaxScaler().fit_transform(weight_fitted.reshape(-1, 1)).flatten()
-    from scipy.stats import boxcox
-    weight_fitted = weight_fitted + 1e-6
-    weight_fitted, _ = boxcox(weight_fitted)
+    differ_PCC_DM = cm_pcc_joint - factor_matrix_ste
+    utils_visualization.draw_projection(differ_PCC_DM)
     
-    # Visualiztion
-    # get electrodes
-    distribution = utils_feature_loading.read_distribution('seed')
-    electrodes = distribution['channel']
+    # %% Matrix of differ(Connectivity_Matrix_PCC, Factor_Matrix); stereo distance matrix; generalized_gaussian
+    # Target
+    # import weight_map_drawer
+    # weight_map_drawer.draw_weight_map_from_file(ranking_method='label_driven_mi')
     
-    # resort
-    weight_channels = np.mean(differ_PCC_DM, axis=0)
-    strength_origin, strength_ranked, rank_indices = rank_and_visualize_fc_strength(weight_fitted, electrodes, feature_name='PCC') #, exclude_electrodes=['CB1', 'CB2'])
+    # # Fitted
+    # channel_names, distance_matrix = compute_distance_matrix('seed', method='stereo')
+    # distance_matrix = featrue_engineering.normalize_matrix(distance_matrix)
+    # utils_visualization.draw_projection(distance_matrix)
+
+    # factor_matrix = compute_volume_conduction_factors(distance_matrix, method='generalized_gaussian', params={'sigma': 2.27, 'beta': 5.0})
+    # factor_matrix = featrue_engineering.normalize_matrix(factor_matrix)
+    # utils_visualization.draw_projection(factor_matrix)
+
+    # _, _, _, global_joint_average = load_global_averages(feature='PCC')
+    # global_joint_average = featrue_engineering.normalize_matrix(global_joint_average)
+    # utils_visualization.draw_projection(global_joint_average)
+
+    # differ_PCC_DM = global_joint_average - factor_matrix
+    # utils_visualization.draw_projection(differ_PCC_DM)
     
-    weight_map_drawer.draw_weight_map_from_data(rank_indices, strength_ranked['Strength'])
+    # # transform from Matrix to Rank
+    # weight_fitted = np.mean(differ_PCC_DM, axis=0)
+    # from sklearn.preprocessing import MinMaxScaler
+    # weight_fitted = MinMaxScaler().fit_transform(weight_fitted.reshape(-1, 1)).flatten()
+    # from scipy.stats import boxcox
+    # weight_fitted = weight_fitted + 1e-6
+    # weight_fitted, _ = boxcox(weight_fitted)
+    
+    # # Visualiztion
+    # # get electrodes
+    # distribution = utils_feature_loading.read_distribution('seed')
+    # electrodes = distribution['channel']
+    
+    # # resort
+    # weight_channels = np.mean(differ_PCC_DM, axis=0)
+    # strength_origin, strength_ranked, rank_indices = rank_and_visualize_fc_strength(weight_fitted, electrodes, feature_name='PCC') #, exclude_electrodes=['CB1', 'CB2'])
+    
+    # weight_map_drawer.draw_weight_map_from_data(rank_indices, strength_ranked['Strength'])

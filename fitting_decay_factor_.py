@@ -65,7 +65,10 @@ def prepare_target_and_inputs(
     transform_method='boxcox',
     mean_align_method='match_mean',
 ):
-    weight_mean, index = draw_weight_mapping(ranking_method=ranking_method)   
+    import weight_map_drawer
+    weight_mean = weight_map_drawer.get_ranking_weight(ranking_method)
+    index = weight_map_drawer.get_index(ranking_method)
+    # weight_mean, index = draw_weight_mapping(ranking_method=ranking_method)   
     r_target = preprocessing_r_target(weight_mean.to_numpy(), normalize_method, transform_method)
 
     _, distance_matrix = feature_transformation.compute_distance_matrix('seed', method=distance_method)
@@ -160,15 +163,15 @@ if __name__ == '__main__':
     # target
     r_target_ = r_target.copy()
     _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_target_, electrodes)
-    feature_transformation.draw_weight_rank_mapping(in_original_indices, strength_ranked['Strength'])
+    weight_map_drawer.draw_weight_map_from_data(in_original_indices, strength_ranked['Strength'])
     
     # non-fitted
     _,_,_,r_non_fitted = feature_transformation.load_global_averages(feature='PCC')
     r_non_fitted = np.mean(r_non_fitted, axis=0)
     _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_non_fitted, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
-    feature_transformation.draw_weight_rank_mapping(in_original_indices, strength_ranked['Strength'])
+    weight_map_drawer.draw_weight_map_from_data(in_original_indices, strength_ranked['Strength'])
     
     # fitted
     r_fitted_g_gaussian = fittings['generalized_gaussian']
     _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_fitted_g_gaussian, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
-    feature_transformation.draw_weight_rank_mapping(in_original_indices, strength_ranked['Strength'])
+    weight_map_drawer.draw_weight_map_from_data(in_original_indices, strength_ranked['Strength'])
