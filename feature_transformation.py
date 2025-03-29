@@ -414,12 +414,25 @@ if __name__ == '__main__':
     factor_matrix_ste = featrue_engineering.normalize_matrix(factor_matrix_ste)
     utils_visualization.draw_projection(factor_matrix_ste)
 
-    # %% Genuine Connectivity Matrix
+    # %% Recovered Connectivity Matrix; Close to Genuine Connectivity Matrix
     differ_PCC_DM = cm_pcc_joint - factor_matrix
     utils_visualization.draw_projection(differ_PCC_DM)
     
-    differ_PCC_DM = cm_pcc_joint - factor_matrix_ste
-    utils_visualization.draw_projection(differ_PCC_DM)
+    differ_PCC_DM_ste = cm_pcc_joint - factor_matrix_ste
+    utils_visualization.draw_projection(differ_PCC_DM_ste)
+    
+    # %% Recovered Channel Weight
+    electrodes = utils_feature_loading.read_distribution('seed')['channel']
+    
+    channel_weight = np.mean(differ_PCC_DM, axis=0)
+    utils_visualization.draw_heatmap_1d(channel_weight, electrodes)
+    
+    channel_weight_ste = np.mean(differ_PCC_DM_ste, axis=0)
+    utils_visualization.draw_heatmap_1d(channel_weight_ste, electrodes)
+    
+    # %% Label-Driven-MI-Based Channel Weight
+    
+    
     
     # %% Matrix of differ(Connectivity_Matrix_PCC, Factor_Matrix); stereo distance matrix; generalized_gaussian
     # Target

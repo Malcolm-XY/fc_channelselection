@@ -117,6 +117,40 @@ if __name__ == '__main__':
         transform_method='boxcox',
     )
 
+    # %% Validation of Fitting Comparison; Before Fitting
+    # Electrode labels
+    from utils import utils_feature_loading
+    electrodes = utils_feature_loading.read_distribution('seed')['channel']
+    if hasattr(electrodes, 'tolist'):
+        electrodes = electrodes.tolist()
+    
+    x = electrodes  # Electrode names 作为横轴
+    
+    # Load and normalize non-modeled r
+    _, _, _, r_non_fitted = feature_transformation.load_global_averages(feature='PCC')
+    r_non_moldeled = np.mean(r_non_fitted, axis=0).reshape(-1, 1)
+    scaler = MinMaxScaler(feature_range=(-2, 0))
+    r_non_moldeled = scaler.fit_transform(r_non_moldeled).flatten()
+    
+    # Compute MSE
+    from sklearn.metrics import mean_squared_error
+    mse_nonmodeled = mean_squared_error(r_target, r_non_moldeled)
+    
+    # Plot
+    plt.figure(figsize=(10, 4))
+    plt.plot(x, r_target, label='r_target', linestyle='--', marker='o', color='black')
+    plt.plot(x, r_non_moldeled, label='r_non_modeled (before)', marker='x', linestyle=':')
+    plt.title(f"Before Modeling - MSE: {mse_nonmodeled:.4f}")
+    plt.xlabel("Electrodes")
+    plt.ylabel("Importance (normalized)")
+    plt.xticks(rotation=60)
+    plt.tick_params(axis='x', labelsize=8)
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+    
+    # %% Fitting
     optimize_and_store('exponential', loss_fn_template('exponential', lambda p: {'sigma': p[0]}, r_target, distance_matrix, connectivity_matrix, preprocessing_fn), [2.0], [(0.1, 20.0)], ['sigma'], distance_matrix, connectivity_matrix, preprocessing_fn)
     optimize_and_store('gaussian', loss_fn_template('gaussian', lambda p: {'sigma': p[0]}, r_target, distance_matrix, connectivity_matrix, preprocessing_fn), [2.0], [(0.1, 20.0)], ['sigma'], distance_matrix, connectivity_matrix, preprocessing_fn)
     optimize_and_store('inverse', loss_fn_template('inverse', lambda p: {'sigma': p[0], 'alpha': p[1]}, r_target, distance_matrix, connectivity_matrix, preprocessing_fn), [2.0, 2.0], [(0.1, 20.0), (0.1, 5.0)], ['sigma', 'alpha'], distance_matrix, connectivity_matrix, preprocessing_fn)
@@ -129,23 +163,29 @@ if __name__ == '__main__':
     for method, result in results.items():
         print(f"[{method.upper()}] Best Parameters: {result['params']}, Minimum MSE: {result['loss']:.6f}")
 
-    fig, axes = plt.subplots(3, 3, figsize=(16, 12))
-    axes = axes.flatten()
+    # %% Validation of Fitting Comparison
+    from utils import utils_feature_loading
+    electrodes = utils_feature_loading.read_distribution('seed')['channel']
+    if hasattr(electrodes, 'tolist'):
+        electrodes = electrodes.tolist()
+    
+    x = electrodes  # Electrode names 作为横轴
+    
+    for method, r_fitting in fittings.items():
+        plt.figure(figsize=(10, 4))  # 每张图单独设置大小
+        plt.plot(x, r_target, label='r_target', linestyle='--', marker='o')
+        plt.plot(x, r_fitting, label=f'r_fitting ({method})', marker='x')
+        plt.title(f"{method.upper()} - MSE: {results[method]['loss']:.4f}")
+        plt.xlabel("Electrodes")
+        plt.ylabel("Importance (normalized)")
+        plt.xticks(rotation=60)
+        plt.tick_params(axis='x', labelsize=8)
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
 
-    for idx, (method, r_fitting) in enumerate(fittings.items()):
-        ax = axes[idx]
-        ax.plot(r_target, label='r_target', linestyle='--', marker='o')
-        ax.plot(r_fitting, label=f'r_fitting ({method})', marker='x')
-        ax.set_title(f"{method.upper()} - MSE: {results[method]['loss']:.4e}")
-        ax.set_xlabel("Channel Index")
-        ax.set_ylabel("Importance (normalized)")
-        ax.legend()
-        ax.grid(True)
-
-    plt.tight_layout()
-    plt.suptitle("Fitting Comparison of Channel Importance across Models", fontsize=18, y=1.02)
-    plt.show()
-
+    # %% Validation of Heatmap
     heatmap_data = np.vstack([r_target] + [fittings[method] for method in fittings.keys()])
     heatmap_labels = ['target'] + list(fittings.keys())
 
@@ -157,7 +197,7 @@ if __name__ == '__main__':
     plt.tight_layout()
     plt.show()
     
-    # %% Validation
+    # %% Validation of Brain Topography
     from utils import utils_feature_loading
     electrodes = utils_feature_loading.read_distribution('seed')['channel']    
     # target
