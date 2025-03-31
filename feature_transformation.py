@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-import featrue_engineering
+import feature_engineering
 from utils import utils_feature_loading
 from utils import utils_visualization
 
@@ -291,12 +291,12 @@ if __name__ == '__main__':
     # utils_visualization.draw_projection(cm_pcc_joint)
 
     # %% Distance Matrix
-    channel_names, distance_matrix = featrue_engineering.compute_distance_matrix('seed')
-    distance_matrix = featrue_engineering.normalize_matrix(distance_matrix)
+    channel_names, distance_matrix = feature_engineering.compute_distance_matrix('seed')
+    distance_matrix = feature_engineering.normalize_matrix(distance_matrix)
     utils_visualization.draw_projection(distance_matrix)
 
-    channel_names, distance_matrix_ste = featrue_engineering.compute_distance_matrix('seed', method='stereo', stereo_params={'prominence': 0.01, 'epsilon': 0.01}, visualize=True)
-    distance_matrix_ste = featrue_engineering.normalize_matrix(distance_matrix_ste)
+    channel_names, distance_matrix_ste = feature_engineering.compute_distance_matrix('seed', method='stereo', stereo_params={'prominence': 0.01, 'epsilon': 0.01}, visualize=True)
+    distance_matrix_ste = feature_engineering.normalize_matrix(distance_matrix_ste)
     utils_visualization.draw_projection(distance_matrix_ste)
     
     # %% Reversed Distance Matrix

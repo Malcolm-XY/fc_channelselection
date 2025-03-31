@@ -14,7 +14,7 @@ from scipy.stats import boxcox
 from scipy.optimize import minimize
 from sklearn.preprocessing import MinMaxScaler
 
-import featrue_engineering
+import feature_engineering
 import feature_transformation
 import weight_map_drawer
 
@@ -33,13 +33,13 @@ def apply_transform(x, method):
     return x
 
 def preprocessing_r_target(r, normalize_method, transform_method):
-    r = featrue_engineering.normalize_matrix(r, normalize_method)
+    r = feature_engineering.normalize_matrix(r, normalize_method)
     r = apply_transform(r, transform_method)
 
     return r
 
 def preprocessing_r_fitting(r, normalize_method, transform_method, r_target, mean_align_method):
-    r = featrue_engineering.normalize_matrix(r, normalize_method)
+    r = feature_engineering.normalize_matrix(r, normalize_method)
     r = apply_transform(r, transform_method)
 
     if mean_align_method == 'match_mean':
@@ -59,11 +59,11 @@ def prepare_target_and_inputs(
     weight_mean = weight_map_drawer.get_ranking_weight(ranking_method)
     r_target = preprocessing_r_target(weight_mean.to_numpy(), normalize_method, transform_method)
 
-    _, distance_matrix = featrue_engineering.compute_distance_matrix('seed', method=distance_method, stereo_params={'prominence': 0.5, 'epsilon': 0.01}, visualize=True)
-    distance_matrix = featrue_engineering.normalize_matrix(distance_matrix)
+    _, distance_matrix = feature_engineering.compute_distance_matrix('seed', method=distance_method, stereo_params={'prominence': 0.5, 'epsilon': 0.01}, visualize=True)
+    distance_matrix = feature_engineering.normalize_matrix(distance_matrix)
 
     _, _, _, global_joint_average = feature_transformation.load_global_averages(feature=feature)
-    connectivity_matrix = featrue_engineering.normalize_matrix(global_joint_average)
+    connectivity_matrix = feature_engineering.normalize_matrix(global_joint_average)
 
     preprocessing_fn = partial(
         preprocessing_r_fitting,
@@ -77,10 +77,10 @@ def prepare_target_and_inputs(
 
 def compute_r_fitting(method, params_dict, distance_matrix, connectivity_matrix, preprocessing_fn):
     factor_matrix = feature_transformation.compute_volume_conduction_factors(distance_matrix, method=method, params=params_dict)
-    factor_matrix = featrue_engineering.normalize_matrix(factor_matrix)
-    differ_PCC_DM = featrue_engineering.normalize_matrix(connectivity_matrix - factor_matrix)
+    factor_matrix = feature_engineering.normalize_matrix(factor_matrix)
+    differ_PCC_DM = feature_engineering.normalize_matrix(connectivity_matrix - factor_matrix)
     r_fitting = np.mean(differ_PCC_DM, axis=0)
-    r_fitting = featrue_engineering.normalize_matrix(r_fitting)
+    r_fitting = feature_engineering.normalize_matrix(r_fitting)
     return preprocessing_fn(r_fitting)
 
 def optimize_and_store(name, loss_fn, x0, bounds, param_keys, distance_matrix, connectivity_matrix, preprocessing_fn):
