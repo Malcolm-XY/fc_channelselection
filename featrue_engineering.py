@@ -9,6 +9,7 @@ import os
 import time
 import h5py
 import numpy as np
+import matplotlib.pyplot as plt
 
 import mne
 from scipy.signal import hilbert
@@ -150,17 +151,98 @@ def filter_eeg_and_save_circle(dataset, subject_range, experiment_range=None, ve
         raise ValueError("Error of unexpected subject or experiment range designation.")
 
 # %% Feature Engineering
-def compute_distance_matrix(dataset):
+def compute_distance_matrix(dataset, method='euclidean', normalize=False, normalization_method='minmax',
+                            stereo_params=None, visualize=False):
+    """
+    计算电极之间的距离矩阵，支持多种距离计算方法。
+
+    Args:
+        dataset (str): 数据集名称，用于读取分布信息。
+        method (str, optional): 距离计算方法，可选值为'euclidean'或'stereo'。默认为'euclidean'。
+            - 'euclidean': 直接计算3D空间中的欧几里得距离
+            - 'stereo': 首先进行立体投影到2D平面，然后计算投影点之间的欧几里得距离
+        normalize (bool, optional): 是否对距离矩阵进行归一化。默认为False。
+        normalization_method (str, optional): 归一化方法，可选值见normalize_matrix函数。默认为'minmax'。
+        stereo_params (dict, optional): 立体投影的参数，仅当method='stereo'时使用。默认为None，此时使用默认参数。
+            可包含以下键值对：
+            - 'prominence': 投影的突出参数，默认为0.1
+            - 'epsilon': 防止除零的小常数，默认为0.01
+
+    Returns:
+        tuple: 包含以下元素:
+            - channel_names (list): 通道名称列表
+            - distance_matrix (numpy.ndarray): 原始或归一化后的距离矩阵
+    """
+    import numpy as np
+
+    # 读取电极分布信息
     distribution = utils_feature_loading.read_distribution(dataset)
-    channel_names, x, y, z = distribution['channel'], distribution['x'], distribution['y'], distribution['z']
+    channel_names = distribution['channel']
+    x, y, z = np.array(distribution['x']), np.array(distribution['y']), np.array(distribution['z'])
+
+    # 设置立体投影的默认参数
+    default_stereo_params = {
+        'prominence': 0.1,
+        'epsilon': 0.01
+    }
+
+    # 如果提供了stereo_params，更新默认参数
+    if stereo_params is not None:
+        default_stereo_params.update(stereo_params)
+
+    if method == 'euclidean':
+        # 计算3D欧几里得距离
+        coords = np.vstack((x, y, z)).T  # 形状 (N, 3)
+        diff = coords[:, np.newaxis, :] - coords[np.newaxis, :, :]
+        distance_matrix = np.sqrt(np.sum(diff ** 2, axis=-1))
+
+    elif method == 'stereo':
+        # 执行立体投影
+        prominence = default_stereo_params['prominence']
+        epsilon = default_stereo_params['epsilon']
+
+        # 归一化z坐标并应用prominence参数
+        z_norm = (z - np.min(z)) / (np.max(z) - np.min(z)) - prominence
+
+        # 计算投影坐标
+        x_proj = x / (1 - z_norm + epsilon)
+        y_proj = y / (1 - z_norm + epsilon)
+
+        # 归一化投影坐标
+        x_norm = (x_proj - np.min(x_proj)) / (np.max(x_proj) - np.min(x_proj))
+        y_norm = (y_proj - np.min(y_proj)) / (np.max(y_proj) - np.min(y_proj))
+
+        # 将投影后的2D坐标堆叠成矩阵
+        proj_coords = np.vstack((x_norm, y_norm)).T  # 形状 (N, 2)
+
+        # 计算投影点之间的2D欧几里得距离
+        diff = proj_coords[:, np.newaxis, :] - proj_coords[np.newaxis, :, :]
+        distance_matrix = np.sqrt(np.sum(diff ** 2, axis=-1))
+        
+        if visualize:
+            plt.figure(figsize=(6, 6))
+            plt.scatter(x_norm, y_norm, c='blue')
+            for i, name in enumerate(channel_names):
+                plt.text(x_norm[i], y_norm[i], name, fontsize=8, ha='right', va='bottom')
+            plt.title(f"Stereo Projection (nonlinear z, prominence={prominence}, epsilon={epsilon})")
+            plt.xlabel("x")
+            plt.ylabel("y")
+            plt.axis("equal")
+            plt.grid(True)
+            plt.tight_layout()
+            plt.show()
     
-    # 将 x, y, z 坐标堆叠成 (N, 3) 形状的矩阵
-    coords = np.vstack((x, y, z)).T  # 形状 (N, 3)
-    
-    # 计算欧几里得距离矩阵
-    diff = coords[:, np.newaxis, :] - coords[np.newaxis, :, :]
-    distance_matrix = np.sqrt(np.sum(diff ** 2, axis=-1))
-    
+        # 计算投影点之间的2D欧几里得距离
+        diff = proj_coords[:, np.newaxis, :] - proj_coords[np.newaxis, :, :]
+        distance_matrix = np.sqrt(np.sum(diff ** 2, axis=-1))
+
+    else:
+        raise ValueError(f"不支持的距离计算方法: {method}，可选值为'euclidean'或'stereo'")
+
+    # 对距离矩阵进行归一化（如果需要）
+    if normalize:
+        distance_matrix = normalize_matrix(distance_matrix, method=normalization_method)
+
     return channel_names, distance_matrix
 
 def fc_matrices_circle(dataset, subject_range=range(1, 2), experiment_range=range(1, 2),

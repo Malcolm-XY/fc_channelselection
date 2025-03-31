@@ -6,12 +6,13 @@ Created on Wed Mar 26 17:30:25 2025
 """
 
 import numpy as np
-from scipy.optimize import minimize
-import matplotlib.pyplot as plt
 import seaborn as sns
-from scipy.stats import boxcox
-from sklearn.preprocessing import MinMaxScaler, StandardScaler
+import matplotlib.pyplot as plt
+
 from functools import partial
+from scipy.stats import boxcox
+from scipy.optimize import minimize
+from sklearn.preprocessing import MinMaxScaler
 
 import featrue_engineering
 import feature_transformation
@@ -30,16 +31,6 @@ def apply_transform(x, method):
     else:
         raise ValueError(f"Unsupported transform_method: {method}")
     return x
-
-# def normalize_data(x, method):
-#     if method == 'minmax':
-#         return MinMaxScaler().fit_transform(x.reshape(-1, 1)).flatten()
-#     elif method == 'zscore':
-#         return StandardScaler().fit_transform(x.reshape(-1, 1)).flatten()
-#     elif method == 'none':
-#         return x.copy()
-#     else:
-#         raise ValueError(f"Unsupported normalize_method: {method}")
 
 def preprocessing_r_target(r, normalize_method, transform_method):
     r = featrue_engineering.normalize_matrix(r, normalize_method)
@@ -65,13 +56,10 @@ def prepare_target_and_inputs(
     transform_method='boxcox',
     mean_align_method='match_mean',
 ):
-    import weight_map_drawer
     weight_mean = weight_map_drawer.get_ranking_weight(ranking_method)
-    index = weight_map_drawer.get_index(ranking_method)
-    # weight_mean, index = draw_weight_mapping(ranking_method=ranking_method)   
     r_target = preprocessing_r_target(weight_mean.to_numpy(), normalize_method, transform_method)
 
-    _, distance_matrix = feature_transformation.compute_distance_matrix('seed', method=distance_method)
+    _, distance_matrix = featrue_engineering.compute_distance_matrix('seed', method=distance_method, stereo_params={'prominence': 0.5, 'epsilon': 0.01}, visualize=True)
     distance_matrix = featrue_engineering.normalize_matrix(distance_matrix)
 
     _, _, _, global_joint_average = feature_transformation.load_global_averages(feature=feature)
@@ -215,3 +203,7 @@ if __name__ == '__main__':
     r_fitted_g_gaussian = fittings['generalized_gaussian']
     _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_fitted_g_gaussian, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
     weight_map_drawer.draw_weight_map_from_data(in_original_indices, strength_ranked['Strength'])
+    
+    # r_fitted_inverse = fittings['inverse']
+    # _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_fitted_inverse, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
+    # weight_map_drawer.draw_weight_map_from_data(in_original_indices, strength_ranked['Strength'])
