@@ -423,22 +423,22 @@ def fc_matrices_circle_(dataset, subject_range=range(1, 2), experiment_range=ran
             if band.lower() in ['delta', 'theta', 'alpha', 'beta', 'gamma']:
                 data = np.array(eeg_data[band.lower()])
                 if feature.lower() == 'pcc':
-                    fc_matrices_dict[identifier] = compute_corr_matrices(data, samplingrate=200)
+                    fc_matrices_dict[identifier] = compute_corr_matrices(data, sampling_rate=200)
                 elif feature.lower() == 'plv':
-                    fc_matrices_dict[identifier] = compute_plv_matrices(data, samplingrate=200)
+                    fc_matrices_dict[identifier] = compute_plv_matrices(data, sampling_rate=200)
                 elif feature.lower() == 'mi':
-                    fc_matrices_dict[identifier] = compute_mi_matrices(data, samplingrate=200)
+                    fc_matrices_dict[identifier] = compute_mi_matrices(data, sampling_rate=200)
 
             elif band.lower() == 'joint':
                 fc_matrices_dict[identifier] = {}  # 确保是字典
                 for band in ['delta', 'theta', 'alpha', 'beta', 'gamma']:
                     data = np.array(eeg_data[band])
                     if feature.lower() == 'pcc':
-                        fc_matrices_dict[identifier][band] = compute_corr_matrices(data, samplingrate=200)
+                        fc_matrices_dict[identifier][band] = compute_corr_matrices(data, sampling_rate=200)
                     elif feature.lower() == 'plv':
-                        fc_matrices_dict[identifier][band] = compute_plv_matrices(data, samplingrate=200)
+                        fc_matrices_dict[identifier][band] = compute_plv_matrices(data, sampling_rate=200)
                     elif feature.lower() == 'mi':
-                        fc_matrices_dict[identifier][band] = compute_mi_matrices(data, samplingrate=200)
+                        fc_matrices_dict[identifier][band] = compute_mi_matrices(data, sampling_rate=200)
 
             # **记录单个 experiment 计算时间**
             experiment_time = time.time() - experiment_start_time
@@ -486,22 +486,22 @@ def fc_matrices_circle_(dataset, subject_range=range(1, 2), experiment_range=ran
                 if band.lower() in ['delta', 'theta', 'alpha', 'beta', 'gamma']:
                     data = np.array(eeg_data[band.lower()])
                     if feature.lower() == 'pcc':
-                        fc_matrices_dict[identifier] = compute_corr_matrices(data, samplingrate=200)
+                        fc_matrices_dict[identifier] = compute_corr_matrices(data, sampling_rate=200)
                     elif feature.lower() == 'plv':
-                        fc_matrices_dict[identifier] = compute_plv_matrices(data, samplingrate=200)
+                        fc_matrices_dict[identifier] = compute_plv_matrices(data, sampling_rate=200)
                     elif feature.lower() == 'mi':
-                        fc_matrices_dict[identifier] = compute_mi_matrices(data, samplingrate=200)
+                        fc_matrices_dict[identifier] = compute_mi_matrices(data, sampling_rate=200)
 
                 elif band.lower() == 'joint':
                     fc_matrices_dict[identifier] = {}  # 确保是字典
                     for band in ['delta', 'theta', 'alpha', 'beta', 'gamma']:
                         data = np.array(eeg_data[band])
                         if feature.lower() == 'pcc':
-                            fc_matrices_dict[identifier][band] = compute_corr_matrices(data, samplingrate=200)
+                            fc_matrices_dict[identifier][band] = compute_corr_matrices(data, sampling_rate=200)
                         elif feature.lower() == 'plv':
-                            fc_matrices_dict[identifier][band] = compute_plv_matrices(data, samplingrate=200)
+                            fc_matrices_dict[identifier][band] = compute_plv_matrices(data, sampling_rate=200)
                         elif feature.lower() == 'mi':
-                            fc_matrices_dict[identifier][band] = compute_mi_matrices(data, samplingrate=200)
+                            fc_matrices_dict[identifier][band] = compute_mi_matrices(data, sampling_rate=200)
 
                 # **记录单个 experiment 计算时间**
                 experiment_time = time.time() - experiment_start_time
@@ -547,13 +547,13 @@ def fc_matrices_circle_(dataset, subject_range=range(1, 2), experiment_range=ran
     
     return fc_matrices_dict
 
-def compute_corr_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=True, visualization=True):
+def compute_corr_matrices(eeg_data, sampling_rate, window=1, overlap=0, verbose=True, visualization=True):
     """
     Compute correlation matrices for EEG data using a sliding window approach.
     
     Parameters:
         eeg_data (numpy.ndarray): EEG data with shape (channels, time_samples).
-        samplingrate (int): Sampling rate of the EEG data in Hz.
+        sampling_rate (int): Sampling rate of the EEG data in Hz.
         window (float): Window size in seconds for segmenting EEG data.
         overlap (float): Overlap fraction between consecutive windows (0 to 1).
         verbose (bool): If True, prints progress.
@@ -563,8 +563,8 @@ def compute_corr_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=T
         list of numpy.ndarray: List of correlation matrices for each window.
     """
     # Compute step size based on overlap
-    step = int(samplingrate * window * (1 - overlap))  # Step size for moving window
-    segment_length = int(samplingrate * window)
+    step = int(sampling_rate * window * (1 - overlap))  # Step size for moving window
+    segment_length = int(sampling_rate * window)
 
     # Split EEG data into overlapping windows
     split_segments = [
@@ -592,13 +592,13 @@ def compute_corr_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=T
 
     return corr_matrices
 
-def compute_plv_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=True, visualization=True):
+def compute_plv_matrices(eeg_data, sampling_rate, window=1, overlap=0, verbose=True, visualization=True):
     """
     Compute Phase Locking Value (PLV) matrices for EEG data using a sliding window approach.
     
     Parameters:
         eeg_data (numpy.ndarray): EEG data with shape (channels, time_samples).
-        samplingrate (int): Sampling rate of the EEG data in Hz.
+        sampling_rate (int): Sampling rate of the EEG data in Hz.
         window (float): Window size in seconds for segmenting EEG data.
         overlap (float): Overlap fraction between consecutive windows (0 to 1).
         verbose (bool): If True, prints progress.
@@ -607,8 +607,8 @@ def compute_plv_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=Tr
     Returns:
         list of numpy.ndarray: List of PLV matrices for each window.
     """
-    step = int(samplingrate * window * (1 - overlap))  # Step size for moving window
-    segment_length = int(samplingrate * window)
+    step = int(sampling_rate * window * (1 - overlap))  # Step size for moving window
+    segment_length = int(sampling_rate * window)
 
     # Split EEG data into overlapping windows
     split_segments = [
@@ -647,13 +647,13 @@ def compute_plv_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=Tr
     return plv_matrices
 
 from tqdm import tqdm  # 用于进度条显示
-def compute_mi_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=True, visualization=True):
+def compute_mi_matrices(eeg_data, sampling_rate, window=1, overlap=0, verbose=True, visualization=True):
     """
     Compute Mutual Information (MI) matrices for EEG data using a sliding window approach (optimized with parallelism).
 
     Parameters:
         eeg_data (numpy.ndarray): EEG data with shape (channels, time_samples).
-        samplingrate (int): Sampling rate of the EEG data in Hz.
+        sampling_rate (int): Sampling rate of the EEG data in Hz.
         window (float): Window size in seconds for segmenting EEG data.
         overlap (float): Overlap fraction between consecutive windows (0 to 1).
         verbose (bool): If True, prints progress.
@@ -665,8 +665,8 @@ def compute_mi_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=Tru
     if verbose:
         print("Starting Mutual Information computation...")
     
-    step = int(samplingrate * window * (1 - overlap))  # Step size for moving window
-    segment_length = int(samplingrate * window)
+    step = int(sampling_rate * window * (1 - overlap))  # Step size for moving window
+    segment_length = int(sampling_rate * window)
 
     if verbose:
         print("Segmenting EEG data...")
@@ -733,8 +733,98 @@ def compute_mi_matrices(eeg_data, samplingrate, window=1, overlap=0, verbose=Tru
 
     return mi_matrices
 
+def compute_averaged_fcnetwork(feature, subjects=range(1, 16), experiments=range(1, 4), draw=True, save=False):
+    # 初始化存储结果的列表
+    cmdata_averages_dict = []
+
+    # 用于累积频段的所有数据
+    all_alpha_values = []
+    all_beta_values = []
+    all_gamma_values = []
+    all_delta_values = []
+    all_theta_values = []
+
+    # 遍历 subject 和 experiment
+    for subject in subjects:  # 假设 subjects 是整数
+        for experiment in experiments:  # 假设 experiments 是整数
+            identifier = f"sub{subject}ex{experiment}"
+            print(identifier)
+            try:
+                # 加载数据
+                cmdata_alpha = utils_feature_loading.read_fcs(dataset='seed', identifier=identifier, feature=feature,
+                                                              band='alpha')
+                cmdata_beta = utils_feature_loading.read_fcs(dataset='seed', identifier=identifier, feature=feature,
+                                                             band='beta')
+                cmdata_gamma = utils_feature_loading.read_fcs(dataset='seed', identifier=identifier, feature=feature,
+                                                              band='gamma')
+                cmdata_delta = utils_feature_loading.read_fcs(dataset='seed', identifier=identifier, feature=feature,
+                                                              band='delta')
+                cmdata_theta = utils_feature_loading.read_fcs(dataset='seed', identifier=identifier, feature=feature,
+                                                              band='theta')
+
+                # 计算平均值
+                cmdata_alpha_averaged = np.mean(cmdata_alpha, axis=0)
+                cmdata_beta_averaged = np.mean(cmdata_beta, axis=0)
+                cmdata_gamma_averaged = np.mean(cmdata_gamma, axis=0)
+                cmdata_delta_averaged = np.mean(cmdata_delta, axis=0)
+                cmdata_theta_averaged = np.mean(cmdata_theta, axis=0)
+
+                # 累积数据
+                all_alpha_values.append(cmdata_alpha_averaged)
+                all_beta_values.append(cmdata_beta_averaged)
+                all_gamma_values.append(cmdata_gamma_averaged)
+                all_delta_values.append(cmdata_delta_averaged)
+                all_theta_values.append(cmdata_theta_averaged)
+
+                # 合并同 subject 同 experiment 的数据
+                cmdata_averages_dict.append({
+                    "subject": subject,
+                    "experiment": experiment,
+                    "averages": {
+                        "alpha": cmdata_alpha_averaged,
+                        "beta": cmdata_beta_averaged,
+                        "gamma": cmdata_gamma_averaged,
+                        "delta": cmdata_delta_averaged,
+                        "theta": cmdata_theta_averaged
+                    }
+                })
+            except Exception as e:
+                print(f"Error processing sub {subject} ex {experiment}: {e}")
+
+    # 计算整个数据集的全局平均值
+    global_alpha_average = np.mean(all_alpha_values, axis=0)
+    global_beta_average = np.mean(all_beta_values, axis=0)
+    global_gamma_average = np.mean(all_gamma_values, axis=0)
+    global_delta_averaged = np.mean(all_delta_values, axis=0)
+    global_theta_averaged = np.mean(all_theta_values, axis=0)
+    global_joint_average = np.mean(np.stack([global_alpha_average, global_beta_average, global_gamma_average, global_delta_averaged, global_theta_averaged], axis=0),
+                                   axis=0)
+
+    if draw:
+        # 输出结果
+        utils_visualization.draw_projection(global_joint_average)
+
+    if save:
+        # 检查和创建 Distribution 文件夹
+        output_dir = 'Distribution'
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        # 保存为 HDF5 文件
+        file_path = os.path.join(output_dir, 'fc_global_averages.h5')
+        with h5py.File(file_path, 'w') as f:
+            f.create_dataset('alpha', data=global_alpha_average)
+            f.create_dataset('beta', data=global_beta_average)
+            f.create_dataset('gamma', data=global_gamma_average)
+            f.create_dataset('delta', data=global_delta_averaged)
+            f.create_dataset('theta', data=global_theta_averaged)
+            f.create_dataset('joint', data=global_joint_average)
+
+        print(f"Results saved to {file_path}")
+
+    return global_alpha_average, global_beta_average, global_gamma_average, global_delta_averaged, global_theta_averaged, global_joint_average
+
 # %% Label Engineering
-def generate_labels(samplingrate=128):
+def generate_labels(sampling_rate=128):
     dreamer = utils_eeg_loading.read_eeg_original_dataset('dreamer')
 
     # labels
@@ -771,9 +861,9 @@ def generate_labels(samplingrate=128):
         labels_dominance = np.concatenate((labels_dominance, label_dominance))
         labels_valence = np.concatenate((labels_valence, label_valence))
 
-    labels_arousal = labels_arousal[::samplingrate]
-    labels_dominance = labels_dominance[::samplingrate]
-    labels_valence = labels_valence[::samplingrate]
+    labels_arousal = labels_arousal[::sampling_rate]
+    labels_dominance = labels_dominance[::sampling_rate]
+    labels_valence = labels_valence[::sampling_rate]
 
     return labels_arousal, labels_dominance, labels_valence
 

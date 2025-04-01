@@ -15,8 +15,8 @@ from scipy.optimize import minimize
 from sklearn.preprocessing import MinMaxScaler
 
 import feature_engineering
-import feature_transformation
-import weight_map_drawer
+import vce_modeling
+import drawer_channel_weight
 
 def apply_transform(x, method):
     x = x + 1e-6  # avoid log(0) or boxcox(0)
@@ -190,26 +190,26 @@ if __name__ == '__main__':
     electrodes = utils_feature_loading.read_distribution('seed')['channel']    
     # target
     r_target_ = r_target.copy()
-    _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_target_, electrodes)
+    _, strength_ranked, in_original_indices = weight_map_drawer.rank_channel_strength(r_target_, electrodes)
     weight_map_drawer.draw_weight_map_from_data(in_original_indices, strength_ranked['Strength'])
     
     # non-fitted
-    _,_,_,r_non_fitted = feature_transformation.load_global_averages(feature='PCC')
+    r_non_fitted = feature_transformation.load_global_averages(feature='PCC')
     r_non_fitted = np.mean(r_non_fitted, axis=0)
-    _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_non_fitted, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
+    _, strength_ranked, in_original_indices = weight_map_drawer.rank_channel_strength(r_non_fitted, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
     weight_map_drawer.draw_weight_map_from_data(in_original_indices, strength_ranked['Strength'])
     
     # fitted
     r_fitted_g_gaussian = fittings['generalized_gaussian']
-    _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_fitted_g_gaussian, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
+    _, strength_ranked, in_original_indices = weight_map_drawer.rank_channel_strength(r_fitted_g_gaussian, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
     weight_map_drawer.draw_weight_map_from_data(in_original_indices, strength_ranked['Strength'])
     
     # r_fitted_inverse = fittings['inverse']
-    # _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_fitted_inverse, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
+    # _, strength_ranked, in_original_indices = weight_map_drawer.rank_and_visualize_fc_strength(r_fitted_inverse, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
     # weight_map_drawer.draw_weight_map_from_data(in_original_indices, strength_ranked['Strength'])
     
     r_fitted_sigmoid = fittings['sigmoid']
-    _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_fitted_sigmoid, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
+    _, strength_ranked, in_original_indices = weight_map_drawer.rank_channel_strength(r_fitted_sigmoid, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
     weight_map_drawer.draw_weight_map_from_data(in_original_indices, strength_ranked['Strength'])
 
     # %% Resort Fittings

@@ -135,11 +135,11 @@ def example_usage_():
     return svm_results
     
 if __name__ == '__main__':
-    import weight_map_drawer
+    import drawer_channel_weight
     from utils import utils_feature_loading
 
     # ranking and channel selection method
-    ranking = np.array(weight_map_drawer.get_index('modeled_g_gaussian'))
+    ranking = np.array(drawer_channel_weight.get_index('modeled_g_gaussian'))
     channel_selection = 0.2
 
     # labels
