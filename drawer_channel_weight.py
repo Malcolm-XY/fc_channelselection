@@ -12,12 +12,11 @@ import matplotlib.pyplot as plt
 
 from utils import utils_feature_loading
 
-
 def get_ranking_weight(ranking='label_driven_mi'):
     # define path
     path_current = os.getcwd()
 
-    path_ranking = os.path.join(path_current, 'Distribution', 'electrodes_ranking.xlsx')
+    path_ranking = os.path.join(path_current, 'Distribution', 'Electrode_Rankings', 'electrodes_ranking.xlsx')
 
     # read xlxs; electrodes ranking
     ranking = pd.read_excel(path_ranking, sheet_name=ranking, engine='openpyxl')
@@ -29,7 +28,7 @@ def get_index(ranking='label_driven_mi'):
     # define path
     path_current = os.getcwd()
 
-    path_ranking = os.path.join(path_current, 'Distribution', 'electrodes_ranking.xlsx')
+    path_ranking = os.path.join(path_current, 'Distribution', 'Electrode_Rankings', 'electrodes_ranking.xlsx')
 
     # read xlxs; electrodes ranking
     ranking = pd.read_excel(path_ranking, sheet_name=ranking, engine='openpyxl')
@@ -95,9 +94,9 @@ def rank_channel_strength(node_strengths, electrode_labels, ascending=False, exc
 def draw_weight_map_from_file(ranking_method='label_driven_mi', offset=0, transformation='log', reverse=False):
     # 获取数据
     index = get_index(ranking_method)
-    weight_mean = get_ranking_weight(ranking_method)  # 假设它返回一个与 electrodes 对应的值列表
+    weights = get_ranking_weight(ranking_method)  # 假设它返回一个与 electrodes 对应的值列表
     if reverse:
-        weight_mean = 1 - weight_mean
+        weights = 1 - weights
     distribution = utils_feature_loading.read_distribution('seed')
 
     dis_t = distribution.iloc[index]
@@ -108,9 +107,9 @@ def draw_weight_map_from_file(ranking_method='label_driven_mi', offset=0, transf
 
     # 归一化 label_driven_mi_mean 以适应颜色显示（假设它是数值列表）
     if transformation == 'log':
-        values = np.array(np.log(weight_mean) + offset)
+        values = np.array(np.log(weights) + offset)
     else:
-        values = np.array(weight_mean + offset)
+        values = np.array(weights + offset)
 
     # 绘制散点图
     plt.figure(figsize=(8, 6))
@@ -132,16 +131,15 @@ def draw_weight_map_from_file(ranking_method='label_driven_mi', offset=0, transf
 
     plt.show()
 
-    return weight_mean, index
+    return None
 
-def draw_weight_map_from_data(ranking, ranked_values, ranked_electrodes=None, offset=0, transformation=None,
+def draw_weight_map_from_data(index, weights, ranked_electrodes=None, offset=0, transformation=None,
                               reverse=False):
-    weight_mean = ranked_values
     if reverse:
-        weight_mean = 1 - weight_mean
+        weights = 1 - weights
     distribution = utils_feature_loading.read_distribution('seed')
 
-    dis_t = distribution.iloc[ranking]
+    dis_t = distribution.iloc[index]
 
     x = np.array(dis_t['x'])
     y = np.array(dis_t['y'])
@@ -149,9 +147,9 @@ def draw_weight_map_from_data(ranking, ranked_values, ranked_electrodes=None, of
 
     # 归一化 label_driven_mi_mean 以适应颜色显示（假设它是数值列表）
     if transformation == 'log':
-        values = np.array(np.log(weight_mean) + offset)
+        values = np.array(np.log(weights) + offset)
     else:
-        values = np.array(weight_mean + offset)
+        values = np.array(weights + offset)
 
     # 绘制散点图
     plt.figure(figsize=(8, 6))
@@ -173,15 +171,14 @@ def draw_weight_map_from_data(ranking, ranked_values, ranked_electrodes=None, of
 
     plt.show()
 
-    return weight_mean
-
+    return None
 
 if __name__ == '__main__':
     # label-driven-MI
-    weight_mean, index = draw_weight_map_from_file(ranking_method='label_driven_mi')
+    weights, index = draw_weight_map_from_file(ranking_method='label_driven_mi')
 
     electrodes = utils_feature_loading.read_distribution('seed')['channel']
-    weight_mean_r = weight_mean[index]
+    weight_mean_r = weights[index]
     from utils import utils_visualization
 
     utils_visualization.draw_heatmap_1d(weight_mean_r, electrodes)

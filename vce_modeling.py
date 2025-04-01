@@ -8,8 +8,6 @@ Created on Tue Jan 14 23:07:14 2025
 import os
 import h5py
 import numpy as np
-import pandas as pd
-import matplotlib.pyplot as plt
 
 import feature_engineering
 from utils import utils_feature_loading
@@ -33,7 +31,7 @@ def load_global_averages(file_path=None, feature=None, band='joint'):
             file_path = 'Distribution/fc_global_averages.h5'
         else:
             path_current = os.getcwd()
-            file_path = os.path.join(path_current, 'Distribution', 'Distance_Matrices',
+            file_path = os.path.join(path_current, 'Distribution', 'Connectivity_Matrices_Averaged',
                                      feature.upper(), f'fc_global_averages_{feature}.h5')
 
     # 检查文件是否存在
@@ -154,7 +152,7 @@ def compute_volume_conduction_factors(_distance_matrix, method='exponential', pa
     np.fill_diagonal(factor_matrix, 1.0)
     return factor_matrix
 
-if __name__ == '__main__':
+if __name__ == '__main__':  
     # %% Load Connectivity Matrix
     cm_pcc_joint = load_global_averages(feature='PCC')
     cm_pcc_joint = feature_engineering.normalize_matrix(np.array(cm_pcc_joint))
@@ -169,7 +167,7 @@ if __name__ == '__main__':
     distance_matrix = feature_engineering.normalize_matrix(distance_matrix)
     utils_visualization.draw_projection(distance_matrix)
 
-    _, distance_matrix_ste = feature_engineering.compute_distance_matrix('seed', method='stereo', stereo_params={'prominence': 0.01, 'epsilon': 0.01}, visualize=True)
+    _, distance_matrix_ste = feature_engineering.compute_distance_matrix('seed', method='stereo', stereo_params={'prominence': 0.1, 'epsilon': 0.01}, visualize=True)
     distance_matrix_ste = feature_engineering.normalize_matrix(distance_matrix_ste)
     utils_visualization.draw_projection(distance_matrix_ste)
     
@@ -229,45 +227,48 @@ if __name__ == '__main__':
     utils_visualization.draw_heatmap_1d(channel_weight_ste, electrodes)
     
     # %% Label-Driven-MI-Based Channel Weight
-    
-    
+    import drawer_channel_weight
+    weights_LD_MI = drawer_channel_weight.get_ranking_weight(ranking='label_driven_mi')
+    index = drawer_channel_weight.get_index(ranking='label_driven_mi')
+    utils_visualization.draw_heatmap_1d(weights_LD_MI, electrodes)
+    drawer_channel_weight.draw_weight_map_from_data(index, weights_LD_MI)
     
     # %% Matrix of differ(Connectivity_Matrix_PCC, Factor_Matrix); stereo distance matrix; generalized_gaussian
     # Target
-    # import weight_map_drawer
-    # weight_map_drawer.draw_weight_map_from_file(ranking_method='label_driven_mi')
+    import drawer_channel_weight
+    drawer_channel_weight.draw_weight_map_from_file(ranking_method='label_driven_mi')
     
-    # # Fitted
-    # channel_names, distance_matrix = compute_distance_matrix('seed', method='stereo')
-    # distance_matrix = featrue_engineering.normalize_matrix(distance_matrix)
-    # utils_visualization.draw_projection(distance_matrix)
+    # Fitted
+    channel_names, distance_matrix = feature_engineering.compute_distance_matrix('seed', method='stereo')
+    distance_matrix = feature_engineering.normalize_matrix(distance_matrix)
+    utils_visualization.draw_projection(distance_matrix)
 
-    # factor_matrix = compute_volume_conduction_factors(distance_matrix, method='generalized_gaussian', params={'sigma': 2.27, 'beta': 5.0})
-    # factor_matrix = featrue_engineering.normalize_matrix(factor_matrix)
-    # utils_visualization.draw_projection(factor_matrix)
+    factor_matrix = compute_volume_conduction_factors(distance_matrix, method='generalized_gaussian', params={'sigma': 2.27, 'beta': 5.0})
+    factor_matrix = feature_engineering.normalize_matrix(factor_matrix)
+    utils_visualization.draw_projection(factor_matrix)
 
-    # _, _, _, global_joint_average = load_global_averages(feature='PCC')
-    # global_joint_average = featrue_engineering.normalize_matrix(global_joint_average)
-    # utils_visualization.draw_projection(global_joint_average)
+    global_joint_average = load_global_averages(feature='PCC')
+    global_joint_average = feature_engineering.normalize_matrix(global_joint_average)
+    utils_visualization.draw_projection(global_joint_average)
 
-    # differ_PCC_DM = global_joint_average - factor_matrix
-    # utils_visualization.draw_projection(differ_PCC_DM)
+    differ_PCC_DM = global_joint_average - factor_matrix
+    utils_visualization.draw_projection(differ_PCC_DM)
     
-    # # transform from Matrix to Rank
-    # weight_fitted = np.mean(differ_PCC_DM, axis=0)
-    # from sklearn.preprocessing import MinMaxScaler
-    # weight_fitted = MinMaxScaler().fit_transform(weight_fitted.reshape(-1, 1)).flatten()
-    # from scipy.stats import boxcox
-    # weight_fitted = weight_fitted + 1e-6
-    # weight_fitted, _ = boxcox(weight_fitted)
+    # transform from Matrix to Rank
+    weight_fitted = np.mean(differ_PCC_DM, axis=0)
+    from sklearn.preprocessing import MinMaxScaler
+    weight_fitted = MinMaxScaler().fit_transform(weight_fitted.reshape(-1, 1)).flatten()
+    from scipy.stats import boxcox
+    weight_fitted = weight_fitted + 1e-6
+    weight_fitted, _ = boxcox(weight_fitted)
     
-    # # Visualiztion
-    # # get electrodes
-    # distribution = utils_feature_loading.read_distribution('seed')
-    # electrodes = distribution['channel']
+    # Visualiztion
+    # get electrodes
+    distribution = utils_feature_loading.read_distribution('seed')
+    electrodes = distribution['channel']
     
-    # # resort
-    # weight_channels = np.mean(differ_PCC_DM, axis=0)
-    # strength_origin, strength_ranked, rank_indices = rank_and_visualize_fc_strength(weight_fitted, electrodes, feature_name='PCC') #, exclude_electrodes=['CB1', 'CB2'])
+    # resort
+    weight_channels = np.mean(differ_PCC_DM, axis=0)
+    strength_origin, strength_ranked, rank_indices = drawer_channel_weight.rank_channel_strength(weight_fitted, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
     
-    # weight_map_drawer.draw_weight_map_from_data(rank_indices, strength_ranked['Strength'])
+    drawer_channel_weight.draw_weight_map_from_data(rank_indices, strength_ranked['Strength'])
