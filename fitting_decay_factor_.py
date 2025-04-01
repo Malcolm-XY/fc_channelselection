@@ -207,3 +207,36 @@ if __name__ == '__main__':
     # r_fitted_inverse = fittings['inverse']
     # _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_fitted_inverse, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
     # weight_map_drawer.draw_weight_map_from_data(in_original_indices, strength_ranked['Strength'])
+    
+    r_fitted_sigmoid = fittings['sigmoid']
+    _, strength_ranked, in_original_indices = feature_transformation.rank_and_visualize_fc_strength(r_fitted_sigmoid, electrodes) #, exclude_electrodes=['CB1', 'CB2'])
+    weight_map_drawer.draw_weight_map_from_data(in_original_indices, strength_ranked['Strength'])
+
+    # %% Resort Fittings
+    weights_sigmoid = fittings['sigmoid'].copy()
+    from utils import utils_feature_loading
+    electrodes = utils_feature_loading.read_distribution('seed')['channel']
+    rank_sigmoid = {'weights': weights_sigmoid, 'electrodes': electrodes}
+    # 获取排序后的索引（按权重降序）
+    sorted_indices = np.argsort(-weights_sigmoid)  # 负号表示降序排序
+    
+    # 构造排序后的结果
+    ranked_sigmoid = {
+        'weights': weights_sigmoid[sorted_indices],               # 排序后的权重
+        'electrodes': electrodes[sorted_indices],    # 排序后的电极
+        'original_indices': sorted_indices               # 排序后电极在原始 electrodes 中的索引
+    }
+    
+    weights_g_gaussian = fittings['generalized_gaussian'].copy()
+    from utils import utils_feature_loading
+    electrodes = utils_feature_loading.read_distribution('seed')['channel']
+    rank_g_gaussian = {'weights': weights_sigmoid, 'electrodes': electrodes}
+    # 获取排序后的索引（按权重降序）
+    sorted_indices = np.argsort(-weights_g_gaussian)  # 负号表示降序排序
+    
+    # 构造排序后的结果
+    ranked_g_gaussian = {
+        'weights': weights_sigmoid[sorted_indices],               # 排序后的权重
+        'electrodes': electrodes[sorted_indices],    # 排序后的电极
+        'original_indices': sorted_indices               # 排序后电极在原始 electrodes 中的索引
+    }

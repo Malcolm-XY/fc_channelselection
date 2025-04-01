@@ -69,7 +69,7 @@ def draw_weight_map_from_file(ranking_method='label_driven_mi', offset=0, transf
         plt.text(x[i], y[i], txt, fontsize=9, ha='right', va='bottom')
     
     # 设置标题和坐标轴
-    plt.title("Label Driven MI Mean Distribution on Electrodes")
+    plt.title("Weight Distribution on Electrodes")
     plt.xlabel("X Coordinate")
     plt.ylabel("Y Coordinate")
     plt.grid(True, linestyle="--", alpha=0.5)
@@ -109,7 +109,7 @@ def draw_weight_map_from_data(ranking, ranked_values, ranked_electrodes=None, of
         plt.text(x[i], y[i], txt, fontsize=9, ha='right', va='bottom')
     
     # 设置标题和坐标轴
-    plt.title("Label Driven MI Mean Distribution on Electrodes")
+    plt.title("Weight Distribution on Electrodes")
     plt.xlabel("X Coordinate")
     plt.ylabel("Y Coordinate")
     plt.grid(True, linestyle="--", alpha=0.5)
@@ -118,16 +118,18 @@ def draw_weight_map_from_data(ranking, ranked_values, ranked_electrodes=None, of
     
     return weight_mean
     
-if __name__ == '__main__':    
+if __name__ == '__main__':
+    # label-driven-MI
     weight_mean, index = draw_weight_map_from_file(ranking_method='label_driven_mi')
     
     electrodes = utils_feature_loading.read_distribution('seed')['channel']
     weight_mean_r = weight_mean[index]
     from utils import utils_visualization
     utils_visualization.draw_heatmap_1d(weight_mean_r, electrodes)
-    # draw_weight_mapping(transformation=None, ranking_method='data_driven_mi')
-    # draw_weight_mapping(transformation=None, ranking_method='data_driven_pcc')
-    # draw_weight_mapping(transformation=None, ranking_method='data_driven_plv')
-
-    # draw_weight_mapping(transformation=None, ranking_method='data_driven_pcc_dm', reverse=False)    
-    # draw_weight_mapping(transformation=None, ranking_method='data_driven_pcc_dm', reverse=True)
+    
+    # data-driven-MI
+    draw_weight_map_from_file(transformation=None, ranking_method='data_driven_mi')
+    
+    draw_weight_map_from_file(transformation=None, ranking_method='data_driven_pcc')
+    
+    draw_weight_map_from_file(transformation=None, ranking_method='data_driven_plv')

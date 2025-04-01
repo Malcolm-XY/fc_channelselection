@@ -135,17 +135,18 @@ def example_usage_():
     return svm_results
     
 if __name__ == '__main__':
-    import utils
+    import weight_map_drawer
+    from utils import utils_feature_loading
 
     # ranking and channel selection method
-    ranking = utils.get_ranking()
-    rank_method, channel_selection = 'data_driven_plv', 0.2
+    ranking = np.array(weight_map_drawer.get_index('modeled_g_gaussian'))
+    channel_selection = 0.2
 
     # labels
-    y = utils.read_labels(dataset='seed')    
+    y = np.array(utils_feature_loading.read_labels(dataset='seed')).reshape(-1)
 
     # 获取需要选择的通道
-    channels_selected = ranking[rank_method][:int(len(ranking) * channel_selection)]
+    channels_selected = ranking[:int(len(ranking) * channel_selection)].tolist()
 
     # 存储结果
     all_results = []
@@ -158,10 +159,17 @@ if __name__ == '__main__':
             print(f'Processing: {subject} {experiment}')
 
             # 读取特征
-            x = utils.load_cfs_seed(f'{subject}{experiment}', 'de_LDS', 'joint')
+            x = utils_feature_loading.read_cfs('seed', f'{subject}{experiment}', 'de_LDS', 'joint')
+            
+            bands = ['delta', 'theta', 'alpha', 'beta', 'gamma']  # or: list(x.keys())
+            band_arrays = [x[band] for band in bands]  # 每个是 Point x Channel
+            
+            # 先堆成 Band x Point x Channel，再转置成 Point x Band x Channel
+            x_array = np.stack(band_arrays, axis=0)  # shape: (Band, Point, Channel)
+            x_array = np.transpose(x_array, (1, 0, 2))  # shape: (Point, Band, Channel)
             
             # 选择通道
-            x_selected = x[:, :, channels_selected]
+            x_selected = x_array[:, :, channels_selected]
             x_selected = x_selected.reshape(len(x_selected), -1)
 
             # SVM Evaluation
