@@ -4,17 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="cf90a7ca-3e7d-4837-92c5-478fa5661137" name="更改" comment="">
-      <change beforePath="$PROJECT_DIR$/data_driven_channel_selection.py" beforeDir="false" afterPath="$PROJECT_DIR$/channel_selection_data_driven.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/feature_engineering.py" beforeDir="false" afterPath="$PROJECT_DIR$/feature_engineering.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/feature_transformation.py" beforeDir="false" afterPath="$PROJECT_DIR$/vce_modeling.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/fitting_decay_factor.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/fitting_decay_factor_.py" beforeDir="false" afterPath="$PROJECT_DIR$/vce_model_fitting.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/label_driven_channel_selection.py" beforeDir="false" afterPath="$PROJECT_DIR$/channel_selection_label_driven.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/svm_cross_val.py" beforeDir="false" afterPath="$PROJECT_DIR$/svm_cross_val.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/svm_results_drawer.py" beforeDir="false" afterPath="$PROJECT_DIR$/drawer_svm_results.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/weight_map_drawer.py" beforeDir="false" afterPath="$PROJECT_DIR$/drawer_channel_weight.py" afterDir="false" />
-    </list>
+    <list default="true" id="cf90a7ca-3e7d-4837-92c5-478fa5661137" name="更改" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -161,6 +151,7 @@
       <workItem from="1742875672886" duration="222000" />
       <workItem from="1742875924152" duration="1363000" />
       <workItem from="1743491985690" duration="4013000" />
+      <workItem from="1743668335499" duration="35000" />
     </task>
     <servers />
   </component>
