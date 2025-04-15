@@ -113,104 +113,80 @@ def example_usage():
     results.to_excel(output_path, index=True, sheet_name='Comparison Results')
 
 def example_usage_():
-    import feature_engineering
-    from utils import utils_feature_loading
-    from utils import utils_visualization
+    import utils
+    # ranking and channel selection method
+    ranking = utils.get_ranking()
+    
+    rank_method, channel_selection = 'label_driven_mi', 0.25    
+    
     # labels
-    y = utils_feature_loading.read_labels(dataset='seed')    
-    
-    # VCE model
-    import vce_modeling
-    _, distance_matrix = feature_engineering.compute_distance_matrix('seed',
-        'euclidean', stereo_params={'prominence': 0.5, 'epsilon': 0.01}, visualize=True)
-    distance_matrix = feature_engineering.normalize_matrix(distance_matrix)
-    utils_visualization.draw_projection(distance_matrix)
-    
-    factor_matrix = vce_modeling.compute_volume_conduction_factors(distance_matrix, 
-                                                                   'sigmoid', {'mu': 2.0, 'beta': 1.0})
-    global factor_matrix_normalized
-    factor_matrix_normalized = feature_engineering.normalize_matrix(factor_matrix)
-    utils_visualization.draw_projection(factor_matrix_normalized)
+    y = utils.read_labels(dataset='seed')    
     
     # features
-    # features = utils_feature_loading.read_fcs('seed', 'sub1ex2', 'pcc')
-    features = utils_feature_loading.read_fcs_mat('seed', 'sub2ex3', 'pcc')
-    global gamma
-    gamma = features['gamma']
+    x = utils.load_cfs_seed('sub1ex1', 'de_LDS', 'joint')
+    channels_selected = ranking[rank_method][:int(len(ranking)*channel_selection)]
     
-    tril_indices = np.tril_indices(62)
-    global x
-    x = gamma[:, tril_indices[0], tril_indices[1]]
-    
-    # recovered features
-    global gamma_recovered
-    gamma_recovered = gamma - factor_matrix_normalized
-    
-    tril_indices = np.tril_indices(62)
-    global x_
-    x_ = gamma_recovered[:, tril_indices[0], tril_indices[1]]
+    x_selected = x[:,:,channels_selected]
+    x_selected = x_selected.reshape(len(x_selected),-1)
     
     # SVM Evaluation
-    svm_results = k_fold_cross_validation_ml(x, y, k_folds=5, model_type='svm')
-    svm_results_ = k_fold_cross_validation_ml(x_, y, k_folds=5, model_type='svm')
+    svm_results = k_fold_cross_validation_ml(x_selected, y, k_folds=5, model_type='svm')
     
-    return svm_results, svm_results_
+    return svm_results
     
 if __name__ == '__main__':
-    svm_results, svm_results_ = example_usage_()
-    
-    # import drawer_channel_weight
-    # from utils import utils_feature_loading
+    import drawer_channel_weight
+    from utils import utils_feature_loading
 
-    # # ranking and channel selection method
-    # ranking = np.array(drawer_channel_weight.get_index('modeled_g_gaussian'))
-    # channel_selection = 0.2
+    # ranking and channel selection method
+    ranking = np.array(drawer_channel_weight.get_index('modeled_g_gaussian'))
+    channel_selection = 0.2
 
-    # # labels
-    # y = np.array(utils_feature_loading.read_labels(dataset='seed')).reshape(-1)
+    # labels
+    y = np.array(utils_feature_loading.read_labels(dataset='seed')).reshape(-1)
 
-    # # 获取需要选择的通道
-    # channels_selected = ranking[:int(len(ranking) * channel_selection)].tolist()
+    # 获取需要选择的通道
+    channels_selected = ranking[:int(len(ranking) * channel_selection)].tolist()
 
-    # # 存储结果
-    # all_results = []
+    # 存储结果
+    all_results = []
 
-    # # 遍历所有 subject (sub1-sub15) 和 experiment (ex1-ex3)
-    # for sub_id in range(1, 16):
-    #     for ex_id in range(1, 4):
-    #         subject = f'sub{sub_id}'
-    #         experiment = f'ex{ex_id}'
-    #         print(f'Processing: {subject} {experiment}')
+    # 遍历所有 subject (sub1-sub15) 和 experiment (ex1-ex3)
+    for sub_id in range(1, 16):
+        for ex_id in range(1, 4):
+            subject = f'sub{sub_id}'
+            experiment = f'ex{ex_id}'
+            print(f'Processing: {subject} {experiment}')
 
-    #         # 读取特征
-    #         x = utils_feature_loading.read_cfs('seed', f'{subject}{experiment}', 'de_LDS', 'joint')
+            # 读取特征
+            x = utils_feature_loading.read_cfs('seed', f'{subject}{experiment}', 'de_LDS', 'joint')
             
-    #         bands = ['delta', 'theta', 'alpha', 'beta', 'gamma']  # or: list(x.keys())
-    #         band_arrays = [x[band] for band in bands]  # 每个是 Point x Channel
+            bands = ['delta', 'theta', 'alpha', 'beta', 'gamma']  # or: list(x.keys())
+            band_arrays = [x[band] for band in bands]  # 每个是 Point x Channel
             
-    #         # 先堆成 Band x Point x Channel，再转置成 Point x Band x Channel
-    #         x_array = np.stack(band_arrays, axis=0)  # shape: (Band, Point, Channel)
-    #         x_array = np.transpose(x_array, (1, 0, 2))  # shape: (Point, Band, Channel)
+            # 先堆成 Band x Point x Channel，再转置成 Point x Band x Channel
+            x_array = np.stack(band_arrays, axis=0)  # shape: (Band, Point, Channel)
+            x_array = np.transpose(x_array, (1, 0, 2))  # shape: (Point, Band, Channel)
             
-    #         # 选择通道
-    #         x_selected = x_array[:, :, channels_selected]
-    #         x_selected = x_selected.reshape(len(x_selected), -1)
+            # 选择通道
+            x_selected = x_array[:, :, channels_selected]
+            x_selected = x_selected.reshape(len(x_selected), -1)
 
-    #         # SVM Evaluation
-    #         svm_results = k_fold_cross_validation_ml(x_selected, y, k_folds=5, model_type='svm')
-    #         all_results.append(svm_results)  # 存储字典
+            # SVM Evaluation
+            svm_results = k_fold_cross_validation_ml(x_selected, y, k_folds=5, model_type='svm')
+            all_results.append(svm_results)  # 存储字典
 
-    # # 提取所有结果的键
-    # result_keys = all_results[0].keys()
+    # 提取所有结果的键
+    result_keys = all_results[0].keys()
 
-    # # 计算每个指标的平均值
-    # avg_results = {key: np.mean([res[key] for res in all_results]) for key in result_keys}
+    # 计算每个指标的平均值
+    avg_results = {key: np.mean([res[key] for res in all_results]) for key in result_keys}
 
-    # # 输出最终平均结果
-    # print(f'Average SVM Results: {avg_results}')
+    # 输出最终平均结果
+    print(f'Average SVM Results: {avg_results}')
 
-    # # 保存到 CSV
-    # df_results = pd.DataFrame(all_results)
-    # df_results.insert(0, "Subject-Experiment", [f'sub{i}ex{j}' for i in range(1,16) for j in range(1,4)])
-    # df_results.loc["Average"] = ["Average"] + list(avg_results.values())
-    # df_results.to_csv("svm_results.csv", index=False)
+    # 保存到 CSV
+    df_results = pd.DataFrame(all_results)
+    df_results.insert(0, "Subject-Experiment", [f'sub{i}ex{j}' for i in range(1,16) for j in range(1,4)])
+    df_results.loc["Average"] = ["Average"] + list(avg_results.values())
+    df_results.to_csv("svm_results.csv", index=False)
