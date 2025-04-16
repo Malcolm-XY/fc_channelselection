@@ -189,7 +189,7 @@ utils_visualization.draw_projection(factor_matrix_normalized)
 all_results_original = []
 all_results_recovered = []
 
-for sub in range(1, 3):
+for sub in range(2, 16):
     for ex in range(1, 4):
         subject_id = f"sub{sub}ex{ex}"
         print(f"Evaluating {subject_id}...")
