@@ -189,13 +189,13 @@ utils_visualization.draw_projection(factor_matrix_normalized)
 all_results_original = []
 all_results_recovered = []
 
-for sub in range(2, 16):
+for sub in range(1, 16):
     for ex in range(1, 4):
         subject_id = f"sub{sub}ex{ex}"
         print(f"Evaluating {subject_id}...")
         
         # CM
-        features = utils_feature_loading.read_fcs_mat('seed', subject_id, 'pcc')
+        features = utils_feature_loading.read_fcs_mat('seed', subject_id, 'plv')
         alpha = features['alpha']
         beta = features['beta']
         gamma = features['gamma']
@@ -223,7 +223,10 @@ print('K-Fold Validation compelete\n')
 
 # %% Save results to XLSX (append mode)
 output_dir = os.path.join(os.getcwd(), 'Results')
-filename_CM = "cnn_validation_CM_PCC.xlsx"
-filename_RCM = "cnn_validation_RCM_PCC.xlsx"
+filename_CM = "cnn_validation_CM_PLV.xlsx"
+filename_RCM = "cnn_validation_RCM_PLV.xlsx"
 save_results_to_xlsx_append(all_results_original, output_dir, filename_CM)
 save_results_to_xlsx_append(all_results_recovered, output_dir, filename_RCM)
+
+# %% End
+end_program_actions(play_sound=True, shutdown=True, countdown_seconds=120)
